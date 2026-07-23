@@ -1325,7 +1325,7 @@ function viewTasks() {
     <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
     ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
     <ul class="cards">${oneOffs.map(taskCardHtml).join("")}</ul>` : ""}
-    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat 3 neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst.</p>`;
+    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat 3 neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst. Abhaken fragt einmal kurz nach – nichts passiert aus Versehen; Zurücknehmen geht direkt.</p>`;
 }
 
 const TASK_SUGGESTIONS = [
@@ -1898,6 +1898,20 @@ function toggleComplete(taskId, e) {
     save(); render();
     return toast("Zurückgenommen");
   }
+  // Vorschau für die Bestätigung (Crit bleibt Überraschung)
+  const pBonus = task.assignee && task.assignee !== device.me ? bonusFor(task.points) : 0;
+  const pSpot = spotlightTaskId() === task.id ? SPOT_BONUS : 0;
+  const preview = task.points + pBonus + pSpot;
+  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
+  confirmSheet({
+    title: `„${esc(task.title)}“ erledigt?`,
+    body: `Das gibt dir <strong>+${preview} P</strong>${pBonus ? " – inkl. Bonus, weil's nicht dein Job war 🏅" : ""}${pSpot ? " – inkl. ✨ Rampenlicht" : ""}.`,
+    confirmLabel: "Ja, erledigt! ✅",
+    onConfirm: () => performComplete(task, cx, cy),
+  });
+}
+
+function performComplete(task, cx, cy) {
   let points = task.points, bonus = 0, spot = 0, crit = 0;
   if (task.assignee && task.assignee !== device.me) {
     bonus = bonusFor(task.points);
@@ -1907,12 +1921,11 @@ function toggleComplete(taskId, e) {
   if (Math.random() < critChance()) { crit = 1; points *= 2; }
   const lvlBefore = levelInfo(earnedTotal(device.me)).lvl;
   state.completions.push({
-    id: uid(), taskId, title: task.title, points, bonus, spot, crit,
+    id: uid(), taskId: task.id, title: task.title, points, bonus, spot, crit,
     playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
   });
   if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
   save(); render();
-  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
   confetti(cx, cy, crit ? { glyphs: ["💥", "⭐️", "✨"], n: 34 } : {});
   toast(crit
     ? `💥 KRITISCHER TREFFER! Alles doppelt: +${points} P`
@@ -1930,6 +1943,24 @@ function toggleComplete(taskId, e) {
       confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎖", "🧹", "✨", "🫧"], n: 40 });
     }, 1800);
   }
+}
+
+function confirmSheet({ title, body, confirmLabel, onConfirm }) {
+  if (document.querySelector(".overlay")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2>${title}</h2>
+      ${body ? `<p class="hint">${body}</p>` : ""}
+      <button class="primary-btn" id="cfYes">${confirmLabel}</button>
+      <button class="sub-btn" id="cfNo">Abbrechen</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => {
+    if (e.target.id === "cfYes") { overlay.remove(); onConfirm(); }
+    else if (e.target.id === "cfNo" || e.target === overlay) overlay.remove();
+  });
 }
 
 function toggleSkip(taskId) {
@@ -1964,10 +1995,18 @@ function redeem(rewardId, e) {
   if (!device.me) return openSetup();
   const r = state.rewards.find((x) => x.id === rewardId);
   if (!r || balance(device.me) < r.cost) return;
-  state.redemptions.push({ id: uid(), rewardId, title: r.title, cost: r.cost, playerId: device.me, ts: now(), deleted: 0, updatedAt: now() });
-  save(); render();
-  confetti(e.clientX || innerWidth / 2, e.clientY || innerHeight / 3);
-  toast(`„${r.title}“ eingelöst – gönn's dir! 🎉`);
+  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
+  confirmSheet({
+    title: `„${esc(r.title)}“ einlösen?`,
+    body: `Dafür gehen <strong>${r.cost} P</strong> von deinem Konto (aktuell ${balance(device.me)} P).`,
+    confirmLabel: "Einlösen 🎁",
+    onConfirm: () => {
+      state.redemptions.push({ id: uid(), rewardId, title: r.title, cost: r.cost, playerId: device.me, ts: now(), deleted: 0, updatedAt: now() });
+      save(); render();
+      confetti(cx, cy);
+      toast(`„${r.title}“ eingelöst – gönn's dir! 🎉`);
+    },
+  });
 }
 
 /* Tabs */
