@@ -2,6 +2,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#F2F5F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131A17" media="(prefers-color-scheme: dark)">
 
 <style>
   :root {
@@ -73,18 +75,24 @@
   html, body { height: 100%; }
   body {
     font-family: var(--body);
+    font-size: 16px;
     background: var(--paper);
     color: var(--ink);
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
     touch-action: manipulation;
     overscroll-behavior-y: none;
   }
-  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button {
+    font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--spruce); outline-offset: 2px; }
   input {
-    font: inherit; color: var(--ink); background: var(--card-2);
+    font: inherit; font-size: 16px; /* <16px löst iOS-Autozoom beim Fokussieren aus */
+    color: var(--ink); background: var(--card-2);
     border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px 14px; width: 100%;
+    padding: 12px 14px; width: 100%; appearance: none; -webkit-appearance: none;
   }
   input::placeholder { color: var(--muted); }
 
