@@ -345,6 +345,7 @@ function load(key) {
 function save() {
   localStorage.setItem(LS_STATE, JSON.stringify(state));
   localStorage.setItem(LS_DEVICE, JSON.stringify(device));
+  syncSoon(); // bei aktivem Auto-Sync Änderungen zeitnah hochschieben
 }
 
 /* ---------- Zeit & Wochen ---------- */
@@ -416,6 +417,10 @@ function mergeState(incoming) {
   for (const key of ["tasks", "completions", "rewards", "redemptions"]) {
     state[key] = mergeById(state[key], incoming[key] || []);
   }
+  // Sync-Raum: beide Geräte einigen sich deterministisch auf den ältesten
+  if (incoming.room && (!state.room || incoming.room.createdAt < state.room.createdAt)) {
+    state.room = incoming.room;
+  }
   save();
 }
 
@@ -448,6 +453,79 @@ async function decodeSync(payload) {
 }
 async function buildSyncUrl() {
   return location.origin + location.pathname + location.search + "#sync=" + (await encodeSync());
+}
+
+/* ---------- Automatischer Sync über einen gemeinsamen JSON-Raum ----------
+   Funktioniert überall dort, wo die Seite externe Server erreichen darf
+   (z. B. eigenes Hosting). Auf Hosting mit strikter CSP (z. B. Claude-
+   Artifact-Seiten) schlägt fetch fehl – die App erklärt das dann ehrlich. */
+const SYNC_CREATE_URL = localStorage.getItem("klarschiff.syncbase") || "https://jsonblob.com/api/jsonBlob";
+const SYNC_INTERVAL = +localStorage.getItem("klarschiff.syncinterval") || 12000;
+let lastSyncedJson = "", syncTickRunning = false, syncSoonTimer = null;
+const syncStatus = { supported: null, lastOkAt: 0 };
+
+async function autoSyncTick() {
+  if (!state.room || syncTickRunning) return;
+  syncTickRunning = true;
+  try {
+    const before = JSON.stringify(state);
+    const res = await fetch(state.room.url, { cache: "no-store" });
+    if (res.ok) {
+      try { mergeState(await res.json()); } catch { /* fremder Inhalt – ignorieren */ }
+    }
+    const json = JSON.stringify(state);
+    if (json !== lastSyncedJson) {
+      const put = await fetch(state.room.url, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: json,
+      });
+      if (put.ok) lastSyncedJson = json;
+    }
+    syncStatus.supported = true;
+    syncStatus.lastOkAt = now();
+    if (json !== before) {
+      const a = document.activeElement;
+      const typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && a.value;
+      if (!typing && !document.querySelector(".overlay")) render();
+    } else if (tab === "profile") {
+      const el = $("#autoSyncStatus");
+      if (el) el.textContent = autoSyncStatusText();
+    }
+  } catch {
+    if (syncStatus.supported === null) syncStatus.supported = false;
+  } finally {
+    syncTickRunning = false;
+  }
+}
+function syncSoon() {
+  if (!state.room) return;
+  clearTimeout(syncSoonTimer);
+  syncSoonTimer = setTimeout(autoSyncTick, 1500);
+}
+async function enableAutoSync() {
+  try {
+    const res = await fetch(SYNC_CREATE_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state),
+    });
+    if (!res.ok) throw new Error("create failed");
+    const loc = res.headers.get("Location");
+    if (!loc) throw new Error("no location");
+    state.room = { url: new URL(loc, SYNC_CREATE_URL).href, createdAt: now() };
+    syncStatus.supported = true;
+    save();
+    autoSyncTick();
+    render();
+    toast("Automatischer Sync ist an ✨ Einmal QR/Code teilen – dann läuft's von allein");
+  } catch {
+    syncStatus.supported = false;
+    render();
+    toast("Klappt auf dieser Seite leider nicht – Details stehen im Profil");
+  }
+}
+function autoSyncStatusText() {
+  if (!syncStatus.lastOkAt) return "Verbinde …";
+  const s = Math.max(0, Math.round((now() - syncStatus.lastOkAt) / 1000));
+  if (s > 90) return "Gerade nicht erreichbar – lokal ist alles gespeichert, es wird weiter versucht.";
+  return `Aktiv – zuletzt abgeglichen vor ${s} s.`;
 }
 
 /* ---------- QR-Code (Byte-Modus, EC-Level L, Version 1–25) ---------- */
@@ -863,9 +941,21 @@ function viewProfile() {
       <input id="codeInput" placeholder="Code oder Sync-Link einfügen …" autocomplete="off">
       <button class="primary-btn" id="codeApplyBtn">Übernehmen</button>
     </div>
+    <div class="section-head"><h2>Automatischer Sync</h2></div>
+    <div class="form-card">
+      ${state.room ? `
+        <p class="hint">✅ <strong>Eingeschaltet.</strong> Beide Handys gleichen sich alle paar Sekunden über einen gemeinsamen, geheimen Online-Raum ab – zusätzlich sofort nach jeder Änderung und beim Öffnen der App. Die Raum-Adresse reist im QR-Code und Sync-Code automatisch mit.</p>
+        <p class="hint" id="autoSyncStatus">${autoSyncStatusText()}</p>
+      ` : syncStatus.supported === false ? `
+        <p class="hint">⛔️ <strong>Auf dieser Seite nicht möglich:</strong> Dieses Hosting (Claude-Artifact) verbietet der App aus Sicherheitsgründen jeden Kontakt zu externen Servern – ohne gemeinsamen Server kann nichts automatisch ankommen. QR-Code und Sync-Code funktionieren hier weiterhin. Wird dieselbe Datei auf normalem Hosting (z. B. GitHub Pages) betrieben, schaltet sich der automatische Sync frei.</p>
+      ` : `
+        <p class="hint">Auf Wunsch gleichen sich beide Handys automatisch ab – über einen gemeinsamen, geheimen Online-Raum (kostenlos, ohne Konto; die Daten liegen dann unter einer nur euch bekannten Zufallsadresse im Netz). Einmal einschalten, einmal QR/Code teilen – ab dann läuft alles von allein.</p>
+        <button class="primary-btn" id="autoSyncBtn">Automatischen Sync einschalten</button>
+      `}
+    </div>
     <div class="section-head"><h2>Gemeinsamer Stand</h2></div>
     <div class="form-card">
-      <p class="hint">Alles wird sofort auf diesem Handy gespeichert. Mit QR-Code oder Sync-Link wandert immer der <strong>komplette</strong> Stand aufs andere Handy und wird zusammengeführt – nichts geht verloren. Nach ein paar erledigten Sachen einfach kurz teilen, dann seht ihr beide dasselbe.</p>
+      <p class="hint">Alles wird sofort auf diesem Handy gespeichert. Mit QR-Code oder Sync-Link wandert immer der <strong>komplette</strong> Stand aufs andere Handy und wird zusammengeführt – nichts geht verloren.${state.room ? "" : " Nach ein paar erledigten Sachen einfach kurz teilen, dann seht ihr beide dasselbe."}</p>
       <button class="primary-btn" id="shareBtn">Sync-Link senden 📤</button>
       <button class="sub-btn" id="copyBtn">Oder Link nur kopieren</button>
       ${lastShare || lastImport ? `<p class="hint">${lastShare ? `Zuletzt geteilt: ${lastShare}` : ""}${lastShare && lastImport ? " · " : ""}${lastImport ? `Zuletzt übernommen: ${lastImport}` : ""}</p>` : ""}
@@ -924,6 +1014,7 @@ function bindMain() {
     if (e.target.id === "copyBtn") shareSync(false);
     if (e.target.id === "codeCopyBtn") copySyncCode();
     if (e.target.id === "codeApplyBtn") applySyncCode();
+    if (e.target.id === "autoSyncBtn") enableAutoSync();
   };
 
   main.onchange = (e) => {
@@ -1149,6 +1240,11 @@ async function boot() {
   }
   render();
   if (!device.me || state.players.some((p) => !p.name)) openSetup();
+  autoSyncTick();
+  setInterval(autoSyncTick, SYNC_INTERVAL);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") autoSyncTick();
+  });
 }
 boot();
 })();
