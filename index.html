@@ -184,6 +184,40 @@
     border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 15px;
   }
   .pt-chip[aria-pressed="true"] { background: var(--coin-soft); border-color: var(--coin); color: var(--coin); }
+  .tab { position: relative; }
+  .tab-badge {
+    position: absolute; top: 5px; right: calc(50% - 27px);
+    background: var(--danger); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 999px; min-width: 16px; height: 16px;
+    display: grid; place-items: center; padding: 0 4px;
+  }
+  .feed-day {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); padding: 12px 4px 4px !important; border-bottom: 0 !important;
+  }
+  .rp { height: 6px; background: var(--card-2); border-radius: 999px; margin-top: 7px; overflow: hidden; }
+  .rp-fill { height: 100%; background: linear-gradient(90deg, var(--coin), #E9B45C); border-radius: 999px; }
+  .alldone {
+    text-align: center; font-family: var(--display); font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg, var(--spruce-soft), var(--coin-soft));
+    border-radius: 16px; padding: 16px;
+  }
+  .task.spotlite { box-shadow: var(--shadow), 0 0 0 2px var(--coin); }
+  .lvl-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .lvl-name { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 14px; }
+  .lvl-title { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .lvl-track { height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; margin: 6px 0 10px; }
+  .lvl-fill { height: 100%; border-radius: 999px; transition: width .7s cubic-bezier(.22, 1, .36, 1); }
+  .lvl-fill.p1 { background: linear-gradient(90deg, var(--p1c-2), var(--p1c)); }
+  .lvl-fill.p2 { background: linear-gradient(90deg, var(--p2c-2), var(--p2c)); }
+  .badge-owner { font-weight: 700; font-size: 13px; margin: 6px 0 6px; display: flex; align-items: center; gap: 7px; }
+  .badge-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    width: 42px; height: 42px; border-radius: 50%; font-size: 20px;
+    background: var(--card-2); border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .badge.locked { filter: grayscale(1); opacity: .32; }
   .day-chip {
     font-family: var(--display); font-weight: 700; font-size: 13px;
     width: 40px; min-height: 38px; border: 1.5px solid var(--line);
@@ -461,11 +495,114 @@ function balance(playerId) {
 }
 function streak(playerId) {
   const days = new Set(alive(state.completions).filter((c) => c.playerId === playerId).map((c) => c.day));
-  let n = 0;
+  let n = 0, joker = 1; // 🃏 ein Aussetzer-Tag pro Serie wird verziehen
   const d = new Date();
   if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1); // heute noch offen zählt nicht als Bruch
-  while (days.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+  for (;;) {
+    if (days.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+    else if (n > 0 && joker > 0) { joker--; d.setDate(d.getDate() - 1); }
+    else break;
+  }
   return n;
+}
+function maxStreak(playerId) {
+  const days = [...new Set(alive(state.completions).filter((c) => c.playerId === playerId).map((c) => c.day))].sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of days) {
+    const d = new Date(k + "T12:00:00");
+    const p = new Date(d); p.setDate(p.getDate() - 1);
+    run = prev === dayKey(p) ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return best;
+}
+
+/* ---------- Level, Abzeichen, Tages-Rampenlicht, Glück ---------- */
+const LEVEL_TITLES = ["Chaos-Küken", "Krümel-Azubi", "Staub-Scout", "Aufräum-Talent", "Ordnungs-Fee", "Wisch-Wizard", "Klarschiff-Profi", "Ordnungs-Ninja", "Putz-Legende", "Haushalts-Hero", "Glanz-Gottheit", "Klarschiff-Kapitän:in"];
+function levelInfo(xp) {
+  let lvl = 1, need = 60, base = 0;
+  while (xp >= base + need && lvl < 99) { base += need; lvl++; need = Math.round(need * 1.35); }
+  return {
+    lvl,
+    title: LEVEL_TITLES[Math.min(lvl - 1, LEVEL_TITLES.length - 1)],
+    pct: Math.min(100, ((xp - base) / need) * 100),
+    next: base + need - xp,
+  };
+}
+
+const BADGES = [
+  ["first", "🥇", "Erster Streich", "Erste Aufgabe erledigt"],
+  ["ten", "🔟", "Zehnkämpfer:in", "10 Aufgaben erledigt"],
+  ["fifty", "🏵️", "Halbes Hundert", "50 Aufgaben erledigt"],
+  ["streak3", "🔥", "Warmgelaufen", "3-Tage-Serie geschafft"],
+  ["streak7", "🌋", "Eine ganze Woche!", "7-Tage-Serie geschafft"],
+  ["bonus5", "🏅", "Rettung in Not", "5× die Aufgabe des Partners übernommen"],
+  ["crit1", "💥", "Glückspilz", "Einen kritischen Treffer gelandet"],
+  ["week100", "💯", "Powerwoche", "100 Punkte in einer Woche"],
+  ["early", "🌅", "Frühputzer:in", "Vor 8 Uhr etwas erledigt"],
+  ["night", "🦉", "Nachteule", "Nach 22 Uhr noch etwas erledigt"],
+  ["shop", "🛍️", "Gönn dir", "Erste Belohnung eingelöst"],
+];
+function badgeStats(pid) {
+  const mine = alive(state.completions).filter((c) => c.playerId === pid);
+  const weeks = {};
+  let early = false, night = false;
+  for (const c of mine) {
+    const w = isoWeek(new Date(c.ts));
+    weeks[w] = (weeks[w] || 0) + c.points;
+    const h = new Date(c.ts).getHours();
+    if (h < 8) early = true;
+    if (h >= 22) night = true;
+  }
+  return {
+    count: mine.length,
+    bonuses: mine.filter((c) => c.bonus).length,
+    crits: mine.filter((c) => c.crit).length,
+    bestWeek: Math.max(0, ...Object.values(weeks)),
+    maxStreak: maxStreak(pid),
+    early, night,
+    redeems: alive(state.redemptions).filter((r) => r.playerId === pid).length,
+  };
+}
+function hasBadge(id, S) {
+  switch (id) {
+    case "first": return S.count >= 1;
+    case "ten": return S.count >= 10;
+    case "fifty": return S.count >= 50;
+    case "streak3": return S.maxStreak >= 3;
+    case "streak7": return S.maxStreak >= 7;
+    case "bonus5": return S.bonuses >= 5;
+    case "crit1": return S.crits >= 1;
+    case "week100": return S.bestWeek >= 100;
+    case "early": return S.early;
+    case "night": return S.night;
+    case "shop": return S.redeems >= 1;
+    default: return false;
+  }
+}
+
+const TESTMODE = () => !!localStorage.getItem("klarschiff.testmode");
+function critChance() {
+  const luck = localStorage.getItem("klarschiff.luck");
+  if (luck !== null) return parseFloat(luck) || 0;
+  return TESTMODE() ? 0 : 0.12;
+}
+const SPOT_BONUS = 5;
+function spotlightTaskId() {
+  if (TESTMODE()) return null;
+  const due = state.tasks
+    .filter((t) => !t.archived && t.kind !== "once" && isDueToday(t))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (!due.length) return null;
+  let h = 0;
+  for (const ch of dayKey()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return due[h % due.length].id;
+}
+function allDoneToday() {
+  const open = state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id));
+  const due = state.tasks.filter((t) => !t.archived && t.kind !== "once" && isDueToday(t));
+  return due.length > 0 && open.length === 0;
 }
 // Wochen-Kontingent pro Person: „Beide“-Aufgaben zählen bei beiden,
 // Einmal-Aufgaben zählen gar nicht (das Limit schützt vor zu vielen neuen Gewohnheiten)
@@ -869,16 +1006,19 @@ function sizeCanvas() {
   cCanvas.height = innerHeight * devicePixelRatio;
 }
 addEventListener("resize", sizeCanvas); sizeCanvas();
-function confetti(x, y) {
+function confetti(x, y, opts = {}) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const colors = ["#3FB98A", "#E9B45C", "#F2F5F1", "#1F6F54", "#F0876F"];
-  for (let i = 0; i < 26; i++) {
+  const colors = ["#0FA38A", "#A855F7", "#E9B45C", "#1F6F54", "#F0876F"];
+  const glyphs = opts.glyphs || null; // z. B. ["🧦","🧹","✨"]
+  const n = opts.n || 26;
+  for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
     particles.push({
       x: x * devicePixelRatio, y: y * devicePixelRatio,
       vx: Math.cos(a) * v * devicePixelRatio, vy: (Math.sin(a) * v - 4) * devicePixelRatio,
       s: (3 + Math.random() * 4) * devicePixelRatio, r: Math.random() * Math.PI,
-      vr: (Math.random() - 0.5) * 0.3, c: colors[i % colors.length], life: 60 + Math.random() * 30,
+      vr: (Math.random() - 0.5) * 0.3, c: colors[i % colors.length],
+      g: glyphs ? glyphs[i % glyphs.length] : null, life: 60 + Math.random() * 30,
     });
   }
   if (!confettiRaf) tickConfetti();
@@ -889,8 +1029,15 @@ function tickConfetti() {
   for (const p of particles) {
     p.life--; p.x += p.vx; p.y += p.vy; p.vy += 0.25 * devicePixelRatio; p.r += p.vr;
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
-    ctx.fillStyle = p.c; ctx.globalAlpha = Math.min(1, p.life / 30);
-    ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+    ctx.globalAlpha = Math.min(1, p.life / 30);
+    if (p.g) {
+      ctx.font = `${p.s * 3}px sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(p.g, 0, 0);
+    } else {
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+    }
     ctx.restore();
   }
   confettiRaf = particles.length ? requestAnimationFrame(tickConfetti) : null;
@@ -912,6 +1059,7 @@ function selectTab(name) {
 function render() {
   $("#weekChip").textContent = "KW " + isoWeek().split("-W")[1];
   renderScoreboard();
+  renderTabBadge();
   const main = $("#main");
   if (tab === "tasks") main.innerHTML = viewTasks();
   else if (tab === "rewards") main.innerHTML = viewRewards();
@@ -919,6 +1067,16 @@ function render() {
   else if (tab === "history") main.innerHTML = viewHistory();
   else main.innerHTML = viewProfile();
   bindMain();
+}
+
+function renderTabBadge() {
+  const open = state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id)).length;
+  const tabEl = document.querySelector('.tab[data-tab="tasks"]');
+  let b = tabEl.querySelector(".tab-badge");
+  if (open > 0) {
+    if (!b) { b = document.createElement("span"); b.className = "tab-badge"; tabEl.appendChild(b); }
+    b.textContent = open;
+  } else if (b) b.remove();
 }
 
 function renderScoreboard() {
@@ -947,6 +1105,7 @@ function taskCardHtml(t) {
     sub = `Heute erledigt von ${esc(displayName(done.playerId))}` + (done.bonus ? ` · +${done.bonus} P Bonus 🏅` : "");
   } else {
     const bits = [];
+    if (!once && !notDue && spotlightTaskId() === t.id) bits.push(`✨ Rampenlicht: +${SPOT_BONUS} extra heute`);
     if (once) bits.push("Einmalig");
     else if (notDue) bits.push(`Erst ${nextDueName(t)} dran`);
     else if (daysLabel(t) !== "täglich") bits.push(daysLabel(t));
@@ -956,7 +1115,7 @@ function taskCardHtml(t) {
     sub = bits.join(" · ") || "Für beide";
   }
   return `
-  <li class="task ${done ? "done" : ""} ${notDue ? "notdue" : ""}" data-id="${t.id}">
+  <li class="task ${done ? "done" : ""} ${notDue ? "notdue" : ""} ${!done && !once && !notDue && spotlightTaskId() === t.id ? "spotlite" : ""}" data-id="${t.id}">
     <button class="check" data-act="check" aria-label="${done ? "Erledigung zurücknehmen" : "Als erledigt markieren"}">✓</button>
     <div class="task-body">
       <div class="task-title">${esc(t.title)}</div>
@@ -1001,6 +1160,7 @@ function viewTasks() {
     </div>
     ${addingTask || editingTask ? taskFormHtml() : ""}
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
+    ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
     ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
     <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
     ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
@@ -1077,6 +1237,7 @@ function viewRewards() {
     ${addingReward ? `
       <form class="form-card" id="rewardForm">
         <input id="rewardTitle" placeholder="z. B. Frühstück ans Bett" maxlength="60" autocomplete="off">
+        <div class="point-row">${["Frühstück ans Bett", "20 Min Massage", "Film aussuchen dürfen", "Ausschlafen – andere:r übernimmt", "Lieblingsessen wird gekocht"].map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}" data-input="rewardTitle">${esc(s)}</button>`).join("")}</div>
         <div class="point-row" id="rewardPoints">
           ${[50, 100, 150, 250, 400].map((p, i) => `<button type="button" class="pt-chip" data-pts="${p}" aria-pressed="${i === 1}">${p} P</button>`).join("")}
         </div>
@@ -1095,6 +1256,7 @@ function viewRewards() {
           <div class="reward-body">
             <div class="reward-title">${esc(r.title)}</div>
             <div class="reward-sub">${can ? "Du hast genug Punkte!" : `Dir fehlen noch ${r.cost - myBalance} P`}</div>
+            ${can ? "" : `<div class="rp"><div class="rp-fill" style="width:${Math.max(2, Math.min(100, (myBalance / r.cost) * 100))}%"></div></div>`}
           </div>
           <button class="redeem-btn" data-act="redeem" ${can ? "" : "disabled"}>${r.cost} P</button>
           <button class="more-btn" data-act="rmenu" aria-label="Optionen">⋯</button>
@@ -1162,6 +1324,17 @@ function viewDuel() {
       <span class="vs">VS</span>
       <div class="duel-player">${esc(displayName("p2"))}<span class="avatar p2">${esc(initial("p2"))}</span></div>
     </div>
+    <div class="form-card">
+      ${["p1", "p2"].map((pid) => {
+        const li = levelInfo(earnedTotal(pid));
+        return `
+        <div class="lvl-row">
+          <span class="lvl-name"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</span>
+          <span class="lvl-title">Lv. ${li.lvl} „${li.title}“ · noch ${li.next} P</span>
+        </div>
+        <div class="lvl-track"><div class="lvl-fill ${pid}" data-w="${li.pct}" style="width:0%"></div></div>`;
+      }).join("")}
+    </div>
     <div class="point-row" id="duelMetric">${metricChips}</div>
     ${chart}
     <div class="stat-tiles">
@@ -1169,26 +1342,53 @@ function viewDuel() {
       <div class="stat-tile"><span class="st-label">Erledigt insgesamt</span><span class="st-val">${doneTotal}×</span></div>
       <div class="stat-tile"><span class="st-label">Beste Serie</span><span class="st-val">${streakLead}</span></div>
       <div class="stat-tile"><span class="st-label">Belohnungen eingelöst</span><span class="st-val">${alive(state.redemptions).length}×</span></div>
+    </div>
+    <div class="section-head"><h2>Abzeichen</h2></div>
+    <div class="form-card">
+      ${["p1", "p2"].map((pid) => {
+        const S = badgeStats(pid);
+        return `
+        <div class="badge-owner"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</div>
+        <div class="badge-grid">
+          ${BADGES.map(([id, emoji, name, desc]) => {
+            const got = hasBadge(id, S);
+            return `<button class="badge ${got ? "" : "locked"}" data-act="peek" data-info="${esc(got ? `${emoji} ${name}: ${desc}` : `🔒 Noch gesperrt – ${desc}`)}" aria-label="${esc(name)}">${emoji}</button>`;
+          }).join("")}
+        </div>`;
+      }).join("")}
+      <p class="hint">Antippen zeigt, wofür's das Abzeichen gibt. 🃏 Und keine Panik: Eure 🔥-Serien verzeihen einen Aussetzer-Tag.</p>
     </div>`;
 }
 
 function viewHistory() {
   const items = [
     ...alive(state.completions).map((c) => ({
-      ts: c.ts, ico: c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
-      text: `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.bonus ? " – mit Bonus" : ""}`,
+      ts: c.ts, ico: c.crit ? "💥" : c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
+      text: `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.crit ? " – kritischer Treffer!" : c.bonus ? " – mit Bonus" : ""}${c.spot ? " ✨" : ""}`,
     })),
     ...alive(state.redemptions).map((r) => ({
       ts: r.ts, ico: "🎁", pts: `−${r.cost}`, neg: true,
       text: `<strong>${esc(displayName(r.playerId))}</strong> hat „${esc(r.title)}“ eingelöst`,
     })),
   ].sort((a, b) => b.ts - a.ts).slice(0, 100);
+  const dayLabel = (ts) => {
+    const k = dayKey(new Date(ts));
+    if (k === dayKey()) return "Heute";
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    if (k === dayKey(y)) return "Gestern";
+    const d = new Date(ts);
+    return `${d.getDate()}.${d.getMonth() + 1}.`;
+  };
+  let lastDay = null;
+  const rows = items.map((i) => {
+    const k = dayKey(new Date(i.ts));
+    const head = k !== lastDay ? `<li class="feed-day">${dayLabel(i.ts)}</li>` : "";
+    lastDay = k;
+    return `${head}<li><span class="f-ico">${i.ico}</span><span class="f-text">${i.text} <span class="f-pts ${i.neg ? "neg" : ""}">${i.pts} P</span></span><span class="f-time">${fmtTime(i.ts)}</span></li>`;
+  }).join("");
   return `
     <div class="section-head"><h2>Verlauf</h2></div>
-    ${items.length === 0 ? `<div class="empty">Hier erscheint alles, was ihr erledigt und einlöst.</div>` : `
-    <ul class="feed">
-      ${items.map((i) => `<li><span class="f-ico">${i.ico}</span><span class="f-text">${i.text} <span class="f-pts ${i.neg ? "neg" : ""}">${i.pts} P</span></span><span class="f-time">${fmtTime(i.ts)}</span></li>`).join("")}
-    </ul>`}
+    ${items.length === 0 ? `<div class="empty">Hier erscheint alles, was ihr erledigt und einlöst.</div>` : `<ul class="feed">${rows}</ul>`}
     <p class="hint">Alles bleibt dauerhaft gespeichert und wandert mit jedem Sync komplett mit – ihr seht beide immer die ganze Geschichte.</p>`;
 }
 
@@ -1306,7 +1506,7 @@ function bindMain() {
     }
     const sug = e.target.closest(".sug-chip");
     if (sug) {
-      const inp = $("#taskTitle");
+      const inp = $("#" + (sug.dataset.input || "taskTitle"));
       if (inp) { inp.value = sug.dataset.suggest; inp.focus(); }
       return;
     }
@@ -1393,10 +1593,14 @@ function bindMain() {
   });
 
   if (tab === "tasks" && (addingTask || editingTask)) updateTaskCalc();
+  if (tab === "tasks" && allDoneToday() && device.celebratedDay !== dayKey()) {
+    device.celebratedDay = dayKey(); save();
+    confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎉", "🫧", "✨", "🧹"], n: 36 });
+  }
   if (tab === "profile" && qrOpen) renderQr();
   if (tab === "duel") {
     requestAnimationFrame(() => {
-      document.querySelectorAll(".bar-fill").forEach((b) => { b.style.width = b.dataset.w + "%"; });
+      document.querySelectorAll(".bar-fill, .lvl-fill").forEach((b) => { b.style.width = b.dataset.w + "%"; });
       document.querySelectorAll(".col-fill").forEach((b) => { b.style.height = b.dataset.h + "%"; });
       document.querySelectorAll("[data-count]").forEach((el) => countUp(el, +el.dataset.count));
     });
@@ -1483,23 +1687,38 @@ function toggleComplete(taskId, e) {
     save(); render();
     return toast("Zurückgenommen");
   }
-  let points = task.points, bonus = 0;
+  let points = task.points, bonus = 0, spot = 0, crit = 0;
   if (task.assignee && task.assignee !== device.me) {
     bonus = bonusFor(task.points);
     points += bonus;
   }
+  if (spotlightTaskId() === task.id) { spot = SPOT_BONUS; points += spot; }
+  if (Math.random() < critChance()) { crit = 1; points *= 2; }
+  const lvlBefore = levelInfo(earnedTotal(device.me)).lvl;
   state.completions.push({
-    id: uid(), taskId, title: task.title, points, bonus,
+    id: uid(), taskId, title: task.title, points, bonus, spot, crit,
     playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
   });
   if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
   save(); render();
-  confetti(e.clientX || innerWidth / 2, e.clientY || innerHeight / 3);
-  toast(task.kind === "once"
-    ? `Einmal-Aufgabe erledigt und abgehakt ✅ +${points} P${bonus ? ` (mit ${bonus} P Bonus 🏅)` : ""}`
-    : bonus
-      ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
-      : `+${points} P für dich! 🎉`);
+  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
+  confetti(cx, cy, crit ? { glyphs: ["💥", "⭐️", "✨"], n: 34 } : {});
+  toast(crit
+    ? `💥 KRITISCHER TREFFER! Alles doppelt: +${points} P`
+    : task.kind === "once"
+      ? `Einmal-Aufgabe erledigt und abgehakt ✅ +${points} P${bonus ? ` (mit ${bonus} P Bonus 🏅)` : ""}`
+      : bonus
+        ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
+        : spot
+          ? `✨ Rampenlicht-Aufgabe: +${points} P (inkl. ${spot} extra)!`
+          : `+${points} P für dich! 🎉`);
+  const after = levelInfo(earnedTotal(device.me));
+  if (after.lvl > lvlBefore) {
+    setTimeout(() => {
+      toast(`🎖 LEVEL UP! Du bist jetzt Lv. ${after.lvl} „${after.title}“`);
+      confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎖", "🧹", "✨", "🫧"], n: 40 });
+    }, 1800);
+  }
 }
 
 function archiveReward(rewardId) {
