@@ -178,6 +178,16 @@
     border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 15px;
   }
   .pt-chip[aria-pressed="true"] { background: var(--coin-soft); border-color: var(--coin); color: var(--coin); }
+  .sug-chip {
+    font-size: 13px; border: 1px dashed var(--line); background: transparent;
+    color: var(--muted); border-radius: 999px; padding: 7px 12px; min-height: 36px;
+  }
+  .install-hint {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted);
+    background: var(--spruce-soft); border-radius: 14px; padding: 10px 6px 10px 14px; line-height: 1.4;
+  }
+  .install-hint strong { color: var(--spruce); }
+  .install-hint .hint-x { flex: none; width: 36px; height: 36px; color: var(--muted); font-size: 14px; }
   .calc { font-size: 14px; color: var(--muted); }
   .calc strong { font-family: var(--display); color: var(--coin); font-variant-numeric: tabular-nums; }
   .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
@@ -378,6 +388,12 @@ const displayName = (id) => (playerById(id)?.name || (id === "p1" ? "Spieler 1" 
 const otherOf = (id) => (id === "p1" ? "p2" : "p1");
 const bonusFor = (points) => Math.ceil(points / 2);
 
+function weekPoints(playerId) {
+  const w = isoWeek();
+  return alive(state.completions)
+    .filter((c) => c.playerId === playerId && isoWeek(new Date(c.ts)) === w)
+    .reduce((s, c) => s + c.points, 0);
+}
 function balance(playerId) {
   const earned = alive(state.completions).filter((c) => c.playerId === playerId).reduce((s, c) => s + c.points, 0);
   const spent = alive(state.redemptions).filter((r) => r.playerId === playerId).reduce((s, r) => s + r.cost, 0);
@@ -791,12 +807,13 @@ function tickConfetti() {
 
 /* ---------- Rendern ---------- */
 let tab = "tasks";
-let addingTask = false, addingReward = false, openMenuTask = null, qrOpen = false;
+let addingTask = false, addingReward = false, openMenuTask = null, openMenuReward = null,
+    editingTask = null, qrOpen = false;
 
 function selectTab(name) {
   tab = name;
   document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === name)));
-  openMenuTask = null; addingTask = false; addingReward = false;
+  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null;
   render();
 }
 
@@ -812,12 +829,20 @@ function render() {
 }
 
 function renderScoreboard() {
-  $("#scoreboard").innerHTML = state.players.map((p) => `
+  $("#scoreboard").innerHTML = state.players.map((p) => {
+    const wk = weekPoints(p.id), otherWk = weekPoints(otherOf(p.id));
+    const crown = wk > 0 && wk > otherWk ? " 🏆" : "";
+    const st = streak(p.id);
+    const parts = [];
+    if (st > 0) parts.push(`🔥 ${st} ${st === 1 ? "Tag" : "Tage"}`);
+    parts.push(`Woche: +${wk} P${crown}`);
+    return `
     <div class="score">
       <span class="who">${esc(displayName(p.id))}${p.id === device.me ? '<span class="me-tag">Ich</span>' : ""}</span>
       <span class="pts">${balance(p.id)} <span style="font-size:15px">P</span></span>
-      <span class="streak">${streak(p.id) > 0 ? "🔥 " + streak(p.id) + (streak(p.id) === 1 ? " Tag" : " Tage") + " Serie" : "Noch keine Serie"}</span>
-    </div>`).join("");
+      <span class="streak">${parts.join(" · ")}</span>
+    </div>`;
+  }).join("");
 }
 
 function viewTasks() {
@@ -825,7 +850,14 @@ function viewTasks() {
   const left = Math.max(0, WEEKLY_NEW_TASKS - used);
   const tasks = state.tasks.filter((t) => !t.archived);
   const dots = Array.from({ length: WEEKLY_NEW_TASKS }, (_, i) => `<span class="dot ${i < used ? "used" : ""}"></span>`).join("");
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
   return `
+    ${isIOS && !standalone && !device.installHintDismissed ? `
+    <div class="install-hint">
+      <span>📲 Wie eine echte App: In Safari <strong>Teilen → „Zum Home-Bildschirm“</strong> – mit Icon, Vollbild und Mitteilungen.</span>
+      <button class="hint-x" data-act="dismissInstall" aria-label="Hinweis ausblenden">✕</button>
+    </div>` : ""}
     <div class="budget">
       <div class="dots">${dots}</div>
       <span><strong>${left === 0 ? "Alle 3 vergeben" : left + " neue Aufgabe" + (left === 1 ? "" : "n")}</strong> ${left === 0 ? "– nächste Woche geht's weiter" : "diese Woche noch frei"}</span>
@@ -834,36 +866,10 @@ function viewTasks() {
       <h2>Unsere Aufgaben</h2>
       <button class="add-btn" id="addTaskBtn" ${left === 0 && !addingTask ? "disabled" : ""}>+ Neu</button>
     </div>
-    ${addingTask ? `
-      <form class="form-card" id="taskForm">
-        <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off">
-        <span class="form-label">Wessen Aufgabe ist das?</span>
-        <div class="point-row" id="taskWho">
-          <button type="button" class="pt-chip" data-who="" aria-pressed="true">Beide</button>
-          <button type="button" class="pt-chip" data-who="p1" aria-pressed="false">${esc(displayName("p1"))}</button>
-          <button type="button" class="pt-chip" data-who="p2" aria-pressed="false">${esc(displayName("p2"))}</button>
-        </div>
-        <span class="form-label">Nervigkeitsfaktor</span>
-        <div class="point-row" id="taskDiff">
-          <button type="button" class="pt-chip" data-val="5" aria-pressed="false">😌 geht so</button>
-          <button type="button" class="pt-chip" data-val="10" aria-pressed="true">😤 nervig</button>
-          <button type="button" class="pt-chip" data-val="15" aria-pressed="false">🤬 sehr nervig</button>
-        </div>
-        <span class="form-label">Dauer</span>
-        <div class="point-row" id="taskDur">
-          <button type="button" class="pt-chip" data-val="1" aria-pressed="true">unter 2 Min</button>
-          <button type="button" class="pt-chip" data-val="1.5" aria-pressed="false">2–10 Min</button>
-          <button type="button" class="pt-chip" data-val="2" aria-pressed="false">länger</button>
-        </div>
-        <div class="calc" id="taskCalc"></div>
-        <div class="form-actions">
-          <button type="button" class="ghost-btn" id="cancelTask">Abbrechen</button>
-          <button type="submit" class="add-btn">Speichern</button>
-        </div>
-      </form>` : ""}
+    ${addingTask || editingTask ? taskFormHtml() : ""}
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue pro Woche an – klein anfangen wirkt am besten!</div>` : ""}
     <ul class="cards">
-      ${tasks.map((t) => {
+      ${[...tasks.filter((t) => !todaysCompletion(t.id)), ...tasks.filter((t) => todaysCompletion(t.id))].map((t) => {
         const done = todaysCompletion(t.id);
         let sub;
         if (done) {
@@ -883,10 +889,53 @@ function viewTasks() {
           <span class="pts-badge">+${t.points} P</span>
           <button class="more-btn" data-act="menu" aria-label="Optionen">⋯</button>
         </li>
-        ${openMenuTask === t.id ? `<li class="task-menu"><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
+        ${openMenuTask === t.id ? `<li class="task-menu"><button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
       }).join("")}
     </ul>
     <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Nochmal tippen macht's rückgängig (nur am selben Tag).</p>`;
+}
+
+const TASK_SUGGESTIONS = [
+  "Jacke an den Haken hängen", "Geschirr in die Spülmaschine", "Klamotten vom Stuhl räumen",
+  "Post & Pakete wegsortieren", "Schuhe ins Regal stellen",
+];
+function diffDurOf(t) {
+  if (t.diff && t.dur) return [t.diff, t.dur];
+  for (const d of [5, 10, 15]) for (const u of [1, 1.5, 2]) if (Math.round(d * u) === t.points) return [d, u];
+  return [10, 1];
+}
+function taskFormHtml() {
+  const t = editingTask ? state.tasks.find((x) => x.id === editingTask) : null;
+  const [diff, dur] = t ? diffDurOf(t) : [10, 1];
+  const who = t ? (t.assignee || "") : "";
+  return `
+    <form class="form-card" id="taskForm">
+      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
+      ${t ? "" : `<div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
+      <span class="form-label">Wessen Aufgabe ist das?</span>
+      <div class="point-row" id="taskWho">
+        <button type="button" class="pt-chip" data-who="" aria-pressed="${who === ""}">Beide</button>
+        <button type="button" class="pt-chip" data-who="p1" aria-pressed="${who === "p1"}">${esc(displayName("p1"))}</button>
+        <button type="button" class="pt-chip" data-who="p2" aria-pressed="${who === "p2"}">${esc(displayName("p2"))}</button>
+      </div>
+      <span class="form-label">Nervigkeitsfaktor</span>
+      <div class="point-row" id="taskDiff">
+        <button type="button" class="pt-chip" data-val="5" aria-pressed="${diff === 5}">😌 geht so</button>
+        <button type="button" class="pt-chip" data-val="10" aria-pressed="${diff === 10}">😤 nervig</button>
+        <button type="button" class="pt-chip" data-val="15" aria-pressed="${diff === 15}">🤬 sehr nervig</button>
+      </div>
+      <span class="form-label">Dauer</span>
+      <div class="point-row" id="taskDur">
+        <button type="button" class="pt-chip" data-val="1" aria-pressed="${dur === 1}">unter 2 Min</button>
+        <button type="button" class="pt-chip" data-val="1.5" aria-pressed="${dur === 1.5}">2–10 Min</button>
+        <button type="button" class="pt-chip" data-val="2" aria-pressed="${dur === 2}">länger</button>
+      </div>
+      <div class="calc" id="taskCalc"></div>
+      <div class="form-actions">
+        <button type="button" class="ghost-btn" id="cancelTask">Abbrechen</button>
+        <button type="submit" class="add-btn">${t ? "Änderungen speichern" : "Speichern"}</button>
+      </div>
+    </form>`;
 }
 
 function viewRewards() {
@@ -922,7 +971,9 @@ function viewRewards() {
             <div class="reward-sub">${can ? "Du hast genug Punkte!" : `Dir fehlen noch ${r.cost - myBalance} P`}</div>
           </div>
           <button class="redeem-btn" data-act="redeem" ${can ? "" : "disabled"}>${r.cost} P</button>
-        </li>`;
+          <button class="more-btn" data-act="rmenu" aria-label="Optionen">⋯</button>
+        </li>
+        ${openMenuReward === r.id ? `<li class="task-menu"><button class="danger-btn" data-id="${r.id}" data-act="archiveReward">Belohnung entfernen</button></li>` : ""}`;
       }).join("")}
     </ul>
     ${log.length ? `
@@ -1054,6 +1105,12 @@ function bindMain() {
       save(); render();
       return;
     }
+    const sug = e.target.closest(".sug-chip");
+    if (sug) {
+      const inp = $("#taskTitle");
+      if (inp) { inp.value = sug.dataset.suggest; inp.focus(); }
+      return;
+    }
     const btn = e.target.closest("[data-act]");
     if (btn) {
       const act = btn.dataset.act;
@@ -1061,11 +1118,19 @@ function bindMain() {
       const id = li.dataset.id;
       if (act === "check") return toggleComplete(id, e);
       if (act === "menu") { openMenuTask = openMenuTask === id ? null : id; return render(); }
+      if (act === "rmenu") { openMenuReward = openMenuReward === id ? null : id; return render(); }
       if (act === "archive") return archiveTask(id);
+      if (act === "archiveReward") return archiveReward(id);
+      if (act === "edit") {
+        editingTask = id; addingTask = false; openMenuTask = null;
+        render(); $("#taskTitle")?.focus();
+        return;
+      }
       if (act === "redeem") return redeem(id, e);
+      if (act === "dismissInstall") { device.installHintDismissed = 1; save(); return render(); }
     }
-    if (e.target.id === "addTaskBtn") { addingTask = true; render(); $("#taskTitle")?.focus(); }
-    if (e.target.id === "cancelTask") { addingTask = false; render(); }
+    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); $("#taskTitle")?.focus(); }
+    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
     if (e.target.id === "addRewardBtn") { addingReward = true; render(); $("#rewardTitle")?.focus(); }
     if (e.target.id === "cancelReward") { addingReward = false; render(); }
     if (e.target.id === "qrToggle") { qrOpen = true; render(); }
@@ -1090,12 +1155,19 @@ function bindMain() {
     e.preventDefault();
     const title = $("#taskTitle").value.trim();
     if (!title) return toast("Gib der Aufgabe einen Namen");
-    if (tasksCreatedThisWeek() >= WEEKLY_NEW_TASKS) return toast("Diese Woche sind schon 3 neue Aufgaben angelegt");
     const diff = +$('#taskDiff .pt-chip[aria-pressed="true"]').dataset.val;
     const dur = +$('#taskDur .pt-chip[aria-pressed="true"]').dataset.val;
     const assignee = $('#taskWho .pt-chip[aria-pressed="true"]').dataset.who || null;
+    const points = Math.round(diff * dur);
+    if (editingTask) {
+      const t = state.tasks.find((x) => x.id === editingTask);
+      if (t) Object.assign(t, { title, points, assignee, diff, dur, updatedAt: now() });
+      editingTask = null; save(); render();
+      return toast("Aufgabe aktualisiert ✏️");
+    }
+    if (tasksCreatedThisWeek() >= WEEKLY_NEW_TASKS) return toast("Diese Woche sind schon 3 neue Aufgaben angelegt");
     state.tasks.push({
-      id: uid(), title, points: Math.round(diff * dur), assignee,
+      id: uid(), title, points, assignee, diff, dur,
       week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
     });
     addingTask = false; save(); render();
@@ -1112,7 +1184,7 @@ function bindMain() {
     toast("Belohnung angelegt 🎁");
   });
 
-  if (tab === "tasks" && addingTask) updateTaskCalc();
+  if (tab === "tasks" && (addingTask || editingTask)) updateTaskCalc();
   if (tab === "profile" && qrOpen) renderQr();
 }
 
@@ -1199,6 +1271,13 @@ function toggleComplete(taskId, e) {
   toast(bonus
     ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
     : `+${points} P für dich! 🎉`);
+}
+
+function archiveReward(rewardId) {
+  const r = state.rewards.find((x) => x.id === rewardId);
+  if (r) { r.archived = now(); r.updatedAt = now(); }
+  openMenuReward = null; save(); render();
+  toast("Belohnung entfernt");
 }
 
 function archiveTask(taskId) {
