@@ -234,23 +234,30 @@
     box-shadow: 0 4px 14px rgba(233, 180, 92, .45);
   }
   .spin-btn[disabled] { opacity: .5; }
-  .daytable { width: 100%; border-collapse: collapse; }
-  .daytable th {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-    color: var(--muted); text-align: left; padding: 2px 6px 8px;
+  .pergrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .percol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .per-head { display: flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 800; font-size: 15px; padding-bottom: 2px; }
+  .per-head.shared { margin-top: 12px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-bottom: 0; }
+  .shared-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .col-task {
+    display: flex; align-items: center; gap: 7px; text-align: left;
+    background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 9px 10px; min-height: 44px; font-size: 13px;
   }
-  .daytable th .pdot { margin-right: 5px; vertical-align: middle; }
-  .daytable th.pcol, .daytable td.pcol { text-align: center; width: 58px; }
-  .daytable td { border-top: 1px solid var(--line); padding: 7px 6px; font-size: 14px; }
-  .daytable .t-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; }
-  .daytable .t-name .pdot { flex: none; }
-  .cell {
-    width: 36px; height: 36px; border-radius: 50%; font-size: 15px;
-    display: inline-grid; place-items: center; background: var(--card-2); color: var(--line);
+  .col-task .ct-status {
+    flex: none; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--card); color: var(--line); font-size: 12px;
   }
-  .cell.done-p1 { background: var(--p1c); color: #fff; }
-  .cell.done-p2 { background: var(--p2c); color: #fff; }
-  .cell.skip { background: transparent; color: var(--danger); font-size: 17px; }
+  .col-task.done-p1 .ct-status { background: var(--p1c); color: #fff; }
+  .col-task.done-p2 .ct-status { background: var(--p2c); color: #fff; }
+  .col-task.done .ct-title { text-decoration: line-through; color: var(--muted); }
+  .col-task.skipped .ct-status { background: transparent; color: var(--danger); font-size: 15px; }
+  .ct-title { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.25; font-weight: 600; }
+  .ct-pts { flex: none; font-family: var(--display); font-weight: 700; font-size: 11px; color: var(--coin); font-variant-numeric: tabular-nums; }
+  .empty-mini {
+    font-size: 12px; color: var(--muted); border: 1px dashed var(--line);
+    border-radius: 12px; padding: 10px; text-align: center;
+  }
   .day-chip {
     font-family: var(--display); font-weight: 700; font-size: 13px;
     width: 40px; min-height: 38px; border: 1.5px solid var(--line);
@@ -1294,31 +1301,34 @@ function viewTasks() {
     ${(() => {
       const todayTasks = [...due, ...oneOffs];
       if (!todayTasks.length) return "";
-      const cell = (t, pid) => {
+      const item = (t, skipOwner) => {
         const done = todaysCompletion(t.id);
-        if (done && done.playerId === pid) return `<button class="cell done-${pid}" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Erledigt von ${esc(displayName(pid))}">✓</button>`;
-        if (skipOf(t.id, pid)) return `<button class="cell skip" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Heute nicht geschafft">✕</button>`;
-        return `<button class="cell" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Offen">·</button>`;
+        const skipped = !done && (skipOwner ? skipOf(t.id, skipOwner) : (skipOf(t.id, "p1") || skipOf(t.id, "p2")));
+        const cls = done ? `done done-${done.playerId}` : skipped ? "skipped" : "";
+        const icon = done ? "✓" : skipped ? "✕" : "·";
+        const label = done ? `Erledigt von ${displayName(done.playerId)}` : skipped ? "Heute nicht geschafft" : "Offen – antippen zum Abhaken";
+        return `
+        <button class="col-task ${cls}" data-act="check" data-id="${t.id}" aria-label="${esc(t.title)}: ${esc(label)}">
+          <span class="ct-status">${icon}</span>
+          <span class="ct-title">${spotlightTaskId() === t.id ? "✨ " : ""}${esc(t.title)}</span>
+          <span class="ct-pts">+${t.points}</span>
+        </button>`;
       };
+      const col = (pid) => {
+        const mine = todayTasks.filter((t) => t.assignee === pid);
+        return `
+        <div class="percol">
+          <div class="per-head"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</div>
+          ${mine.length ? mine.map((t) => item(t, pid)).join("") : `<div class="empty-mini">Heute nichts Eigenes 🎉</div>`}
+        </div>`;
+      };
+      const shared = todayTasks.filter((t) => !t.assignee);
       return `
       <div class="section-head"><h2>Heute im Blick</h2></div>
-      <div class="form-card" style="padding:14px 10px 8px">
-        <table class="daytable">
-          <thead><tr>
-            <th>Aufgabe</th>
-            <th class="pcol"><span class="pdot p1"></span>${esc(displayName("p1"))}</th>
-            <th class="pcol"><span class="pdot p2"></span>${esc(displayName("p2"))}</th>
-          </tr></thead>
-          <tbody>
-            ${todayTasks.map((t) => `
-            <tr>
-              <td><span class="t-name">${t.assignee ? `<span class="pdot ${t.assignee}"></span>` : ""}${spotlightTaskId() === t.id ? "✨ " : ""}${esc(t.title)}</span></td>
-              <td class="pcol">${cell(t, "p1")}</td>
-              <td class="pcol">${cell(t, "p2")}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-        <p class="hint" style="padding:8px 6px 6px">Tippe in deiner Spalte: Punkt = abhaken. „Heute nicht geschafft“ findest du im ⋯-Menü der Aufgabe – ganz ohne Drama.</p>
+      <div class="form-card">
+        <div class="pergrid">${col("p1")}${col("p2")}</div>
+        ${shared.length ? `<div class="per-head shared">Für beide</div><div class="shared-list">${shared.map((t) => item(t, null)).join("")}</div>` : ""}
+        <p class="hint">Antippen zum Abhaken – geht auch in der Spalte des anderen und bringt dann 50 % Bonus 🏅. ✕ = heute nicht geschafft (im ⋯-Menü der Aufgabe, dort auch zurücknehmbar).</p>
       </div>`;
     })()}
     ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
@@ -1715,18 +1725,6 @@ function bindMain() {
       if (act === "spin") return spinWheel();
       if (act === "gowheel") return selectTab("duel");
       if (act === "skip") return toggleSkip(id);
-      if (act === "cell") {
-        const pid = btn.dataset.pid;
-        if (pid !== device.me) {
-          const d = todaysCompletion(id);
-          return toast(d && d.playerId === pid
-            ? `${displayName(pid)} hat's erledigt (${fmtTime(d.ts)})`
-            : `Das ist ${displayName(pid)}s Spalte 😉`);
-        }
-        const sk = skipOf(id, pid);
-        if (sk) { sk.deleted = now(); sk.updatedAt = now(); save(); render(); return toast("Wieder offen – du schaffst das 💪"); }
-        return toggleComplete(id, e);
-      }
     }
     if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); $("#taskTitle")?.focus(); }
     if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
@@ -1924,6 +1922,8 @@ function performComplete(task, cx, cy) {
     id: uid(), taskId: task.id, title: task.title, points, bonus, spot, crit,
     playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
   });
+  const mySkip = skipOf(task.id, device.me); // „doch noch geschafft“ hebt das ✕ auf
+  if (mySkip) { mySkip.deleted = now(); mySkip.updatedAt = now(); }
   if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
   save(); render();
   confetti(cx, cy, crit ? { glyphs: ["💥", "⭐️", "✨"], n: 34 } : {});
