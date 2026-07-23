@@ -218,6 +218,22 @@
     display: grid; place-items: center;
   }
   .badge.locked { filter: grayscale(1); opacity: .32; }
+  .wheel-wrap { position: relative; display: grid; place-items: center; padding: 10px 0 4px; }
+  .wheel-wrap canvas { width: min(72vw, 280px); height: auto; }
+  .wheel-wrap.idle canvas { filter: grayscale(.65) opacity(.55); }
+  .wheel-pointer {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent;
+    border-top: 16px solid var(--ink); z-index: 2;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,.25));
+  }
+  .spin-btn {
+    background: linear-gradient(135deg, var(--coin), #E9B45C); color: #3A2A05;
+    font-family: var(--display); font-weight: 800; font-size: 16px;
+    border-radius: 999px; padding: 13px 26px; min-height: 50px;
+    box-shadow: 0 4px 14px rgba(233, 180, 92, .45);
+  }
+  .spin-btn[disabled] { opacity: .5; }
   .day-chip {
     font-family: var(--display); font-weight: 700; font-size: 13px;
     width: 40px; min-height: 38px; border: 1.5px solid var(--line);
@@ -494,7 +510,7 @@ function balance(playerId) {
   return earned - spent;
 }
 function streak(playerId) {
-  const days = new Set(alive(state.completions).filter((c) => c.playerId === playerId).map((c) => c.day));
+  const days = new Set(alive(state.completions).filter((c) => c.playerId === playerId && !c.wheel).map((c) => c.day));
   let n = 0, joker = 1; // 🃏 ein Aussetzer-Tag pro Serie wird verziehen
   const d = new Date();
   if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1); // heute noch offen zählt nicht als Bruch
@@ -506,7 +522,7 @@ function streak(playerId) {
   return n;
 }
 function maxStreak(playerId) {
-  const days = [...new Set(alive(state.completions).filter((c) => c.playerId === playerId).map((c) => c.day))].sort();
+  const days = [...new Set(alive(state.completions).filter((c) => c.playerId === playerId && !c.wheel).map((c) => c.day))].sort();
   let best = 0, run = 0, prev = null;
   for (const k of days) {
     const d = new Date(k + "T12:00:00");
@@ -545,7 +561,7 @@ const BADGES = [
   ["shop", "🛍️", "Gönn dir", "Erste Belohnung eingelöst"],
 ];
 function badgeStats(pid) {
-  const mine = alive(state.completions).filter((c) => c.playerId === pid);
+  const mine = alive(state.completions).filter((c) => c.playerId === pid && !c.wheel);
   const weeks = {};
   let early = false, night = false;
   for (const c of mine) {
@@ -599,6 +615,67 @@ function spotlightTaskId() {
   for (const ch of dayKey()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return due[h % due.length].id;
 }
+/* ---------- Samstags-Glücksrad ---------- */
+const WHEEL_PRIZES = [5, 25, 10, 50, 15, 30, 20, 100];
+const WHEEL_COLORS = ["#0FA38A", "#A855F7", "#E9B45C", "#1F6F54", "#0FA38A", "#A855F7", "#E9B45C", "#C2410C"];
+const isWheelDay = () => todayIdx() === 5 || !!localStorage.getItem("klarschiff.wheelday");
+const myWheelSpinToday = () =>
+  alive(state.completions).find((c) => c.wheel && c.playerId === device.me && c.day === dayKey());
+function daysUntilSaturday() {
+  return (5 - todayIdx() + 7) % 7 || 7;
+}
+function drawWheel(canvas) {
+  const n = WHEEL_PRIZES.length, size = 560, r = size / 2;
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext("2d");
+  for (let i = 0; i < n; i++) {
+    const a0 = (-90 + i * (360 / n)) * Math.PI / 180;
+    const a1 = (-90 + (i + 1) * (360 / n)) * Math.PI / 180;
+    g.beginPath(); g.moveTo(r, r); g.arc(r, r, r - 4, a0, a1); g.closePath();
+    g.fillStyle = WHEEL_COLORS[i]; g.fill();
+    g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = 3; g.stroke();
+    const mid = (a0 + a1) / 2;
+    g.save();
+    g.translate(r + Math.cos(mid) * r * 0.62, r + Math.sin(mid) * r * 0.62);
+    g.rotate(mid + Math.PI / 2);
+    g.fillStyle = "#fff";
+    g.font = `800 ${WHEEL_PRIZES[i] === 100 ? 46 : 40}px ui-rounded, -apple-system, sans-serif`;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(WHEEL_PRIZES[i] === 100 ? "💰100" : String(WHEEL_PRIZES[i]), 0, 0);
+    g.restore();
+  }
+  g.beginPath(); g.arc(r, r, 34, 0, Math.PI * 2);
+  g.fillStyle = "#fff"; g.fill();
+  g.font = "34px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("🎡", r, r + 2);
+}
+let wheelSpinning = false;
+function spinWheel() {
+  if (wheelSpinning || !isWheelDay() || myWheelSpinToday()) return;
+  if (!device.me) return openSetup();
+  const canvas = $("#wheelCanvas");
+  const btn = $("#spinBtn");
+  if (!canvas) return;
+  wheelSpinning = true;
+  if (btn) btn.disabled = true;
+  const idx = Math.floor(Math.random() * WHEEL_PRIZES.length);
+  const prize = WHEEL_PRIZES[idx];
+  const segment = 360 / WHEEL_PRIZES.length;
+  const target = 6 * 360 + (360 - (idx * segment + segment / 2));
+  canvas.style.transition = "transform 4.2s cubic-bezier(.12,.68,.08,1)";
+  canvas.style.transform = `rotate(${target}deg)`;
+  canvas.addEventListener("transitionend", () => {
+    state.completions.push({
+      id: uid(), taskId: null, title: "Glücksrad", points: prize, bonus: 0, wheel: 1,
+      playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
+    });
+    wheelSpinning = false;
+    save(); render();
+    confetti(innerWidth / 2, innerHeight / 3, prize === 100 ? { glyphs: ["💰", "🎡", "✨", "🤑"], n: 44 } : { glyphs: ["🎡", "✨"], n: 30 });
+    toast(prize === 100 ? "💰 JACKPOT! 100 Punkte!!!" : `🎡 ${prize} P gewonnen – Glückwunsch!`);
+  }, { once: true });
+}
+
 function allDoneToday() {
   const open = state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id));
   const due = state.tasks.filter((t) => !t.archived && t.kind !== "once" && isDueToday(t));
@@ -731,7 +808,7 @@ async function autoSyncTick() {
     if (json !== before) {
       const a = document.activeElement;
       const typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && a.value;
-      if (!typing && !document.querySelector(".overlay")) render();
+      if (!typing && !wheelSpinning && !document.querySelector(".overlay")) render();
       notifyPartnerNews();
     } else if (tab === "profile") {
       const el = $("#autoSyncStatus");
@@ -775,7 +852,12 @@ function partnerNews() {
   return [
     ...alive(state.completions)
       .filter((c) => c.playerId !== device.me && c.ts > cutoff)
-      .map((c) => ({ ts: c.ts, text: `${displayName(c.playerId)} hat „${c.title}“ erledigt (+${c.points} P) 🎉` })),
+      .map((c) => ({
+        ts: c.ts,
+        text: c.wheel
+          ? `${displayName(c.playerId)} hat am Glücksrad ${c.points} P gewonnen 🎡`
+          : `${displayName(c.playerId)} hat „${c.title}“ erledigt (+${c.points} P) 🎉`,
+      })),
     ...alive(state.redemptions)
       .filter((r) => r.playerId !== device.me && r.ts > cutoff)
       .map((r) => ({ ts: r.ts, text: `${displayName(r.playerId)} hat sich „${r.title}“ gegönnt (−${r.cost} P) 🎁` })),
@@ -1161,6 +1243,7 @@ function viewTasks() {
     ${addingTask || editingTask ? taskFormHtml() : ""}
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
     ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
+    ${isWheelDay() && !myWheelSpinToday() ? `<button class="install-hint" data-act="gowheel" style="width:100%;text-align:left">🎡 <strong>Glücksrad-Samstag!</strong> Dein Gratis-Dreh wartet im Duell-Tab →</button>` : ""}
     ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
     <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
     ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
@@ -1312,8 +1395,8 @@ function viewDuel() {
     chart = `<div class="form-card">${row("p1", v1)}${row("p2", v2)}</div>`;
   }
 
-  const doneTotal = alive(state.completions).length;
-  const doneWeek = alive(state.completions).filter((c) => isoWeek(new Date(c.ts)) === isoWeek()).length;
+  const doneTotal = alive(state.completions).filter((c) => !c.wheel).length;
+  const doneWeek = alive(state.completions).filter((c) => !c.wheel && isoWeek(new Date(c.ts)) === isoWeek()).length;
   const s1 = streak("p1"), s2 = streak("p2");
   const streakLead = s1 === s2
     ? (s1 > 0 ? `je ${s1} 🔥` : "–")
@@ -1343,6 +1426,27 @@ function viewDuel() {
       <div class="stat-tile"><span class="st-label">Beste Serie</span><span class="st-val">${streakLead}</span></div>
       <div class="stat-tile"><span class="st-label">Belohnungen eingelöst</span><span class="st-val">${alive(state.redemptions).length}×</span></div>
     </div>
+    <div class="section-head"><h2>🎡 Samstags-Glücksrad</h2></div>
+    <div class="form-card">
+      ${(() => {
+        const spun = myWheelSpinToday();
+        if (!isWheelDay()) {
+          const d = daysUntilSaturday();
+          return `
+            <p class="hint">Jeden Samstag darf jede:r <strong>einmal</strong> am Rad drehen – 5 bis 💰 100 Punkte warten. Noch ${d === 1 ? "1 Tag" : d + " Tage"} bis zum nächsten Dreh!</p>
+            <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, erst am Samstag drehbar"></canvas></div>`;
+        }
+        if (spun) {
+          return `
+            <p class="hint">🎉 Du hast heute <strong>${spun.points} P</strong> gewonnen! Nächsten Samstag geht's weiter.</p>
+            <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, heute schon gedreht"></canvas></div>`;
+        }
+        return `
+          <p class="hint">Es ist Samstag – dein Dreh! Einmal pro Person, 5 bis 💰 100 Punkte.</p>
+          <div class="wheel-wrap"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad"></canvas></div>
+          <button class="spin-btn" id="spinBtn" data-act="spin">Drehen! 🎡</button>`;
+      })()}
+    </div>
     <div class="section-head"><h2>Abzeichen</h2></div>
     <div class="form-card">
       ${["p1", "p2"].map((pid) => {
@@ -1363,8 +1467,10 @@ function viewDuel() {
 function viewHistory() {
   const items = [
     ...alive(state.completions).map((c) => ({
-      ts: c.ts, ico: c.crit ? "💥" : c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
-      text: `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.crit ? " – kritischer Treffer!" : c.bonus ? " – mit Bonus" : ""}${c.spot ? " ✨" : ""}`,
+      ts: c.ts, ico: c.wheel ? "🎡" : c.crit ? "💥" : c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
+      text: c.wheel
+        ? `<strong>${esc(displayName(c.playerId))}</strong> hat am Glücksrad gewonnen${c.points >= 100 ? " – JACKPOT! 💰" : ""}`
+        : `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.crit ? " – kritischer Treffer!" : c.bonus ? " – mit Bonus" : ""}${c.spot ? " ✨" : ""}`,
     })),
     ...alive(state.redemptions).map((r) => ({
       ts: r.ts, ico: "🎁", pts: `−${r.cost}`, neg: true,
@@ -1529,6 +1635,8 @@ function bindMain() {
       if (act === "dismissInstall") { device.installHintDismissed = 1; save(); return render(); }
       if (act === "cheer") return confetti(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2);
       if (act === "peek") return toast(btn.dataset.info);
+      if (act === "spin") return spinWheel();
+      if (act === "gowheel") return selectTab("duel");
     }
     if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); $("#taskTitle")?.focus(); }
     if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
@@ -1599,6 +1707,15 @@ function bindMain() {
   }
   if (tab === "profile" && qrOpen) renderQr();
   if (tab === "duel") {
+    const wc = $("#wheelCanvas");
+    if (wc) {
+      drawWheel(wc);
+      const spun = myWheelSpinToday();
+      if (spun) {
+        const idx = WHEEL_PRIZES.indexOf(spun.points);
+        if (idx >= 0) wc.style.transform = `rotate(${360 - (idx * (360 / WHEEL_PRIZES.length) + 180 / WHEEL_PRIZES.length)}deg)`;
+      }
+    }
     requestAnimationFrame(() => {
       document.querySelectorAll(".bar-fill, .lvl-fill").forEach((b) => { b.style.width = b.dataset.w + "%"; });
       document.querySelectorAll(".col-fill").forEach((b) => { b.style.height = b.dataset.h + "%"; });
