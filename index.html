@@ -855,6 +855,14 @@ function viewProfile() {
         ? `<div class="qr-wrap"><canvas id="qrCanvas" aria-label="QR-Code mit eurem gemeinsamen Stand"></canvas></div><p class="hint" id="qrNote">QR-Code wird erstellt …</p>`
         : `<button class="primary-btn" id="qrToggle">QR-Code anzeigen</button>`}
     </div>
+    <div class="section-head"><h2>Sync-Code</h2></div>
+    <div class="form-card">
+      <p class="hint">Plan B, falls das Scannen mal nicht klappt: ein Code aus zufällig wirkenden Zahlen und Buchstaben, der euren kompletten Stand enthält. Kopieren, rüberschicken (iMessage, WhatsApp, egal) – und auf dem anderen Handy hier einfügen.</p>
+      <button class="primary-btn" id="codeCopyBtn">Sync-Code kopieren</button>
+      <span class="form-label">Code erhalten? Hier einfügen</span>
+      <input id="codeInput" placeholder="Code oder Sync-Link einfügen …" autocomplete="off">
+      <button class="primary-btn" id="codeApplyBtn">Übernehmen</button>
+    </div>
     <div class="section-head"><h2>Gemeinsamer Stand</h2></div>
     <div class="form-card">
       <p class="hint">Alles wird sofort auf diesem Handy gespeichert. Mit QR-Code oder Sync-Link wandert immer der <strong>komplette</strong> Stand aufs andere Handy und wird zusammengeführt – nichts geht verloren. Nach ein paar erledigten Sachen einfach kurz teilen, dann seht ihr beide dasselbe.</p>
@@ -914,6 +922,8 @@ function bindMain() {
     if (e.target.id === "qrToggle") { qrOpen = true; render(); }
     if (e.target.id === "shareBtn") shareSync(true);
     if (e.target.id === "copyBtn") shareSync(false);
+    if (e.target.id === "codeCopyBtn") copySyncCode();
+    if (e.target.id === "codeApplyBtn") applySyncCode();
   };
 
   main.onchange = (e) => {
@@ -964,7 +974,37 @@ async function renderQr() {
     note.textContent = "Mit der Kamera-App scannen – öffnet Klarschiff mit eurem kompletten Stand.";
   } else {
     canvas.closest(".qr-wrap").remove();
-    note.textContent = "Euer Verlauf ist inzwischen zu groß für einen QR-Code – nutzt unten einfach den Sync-Link, der kann beliebig viel.";
+    note.textContent = "Euer Verlauf ist inzwischen zu groß für einen QR-Code – nutzt einfach den Sync-Code oder Sync-Link darunter, die können beliebig viel.";
+  }
+}
+
+async function importFromText(raw) {
+  const payload = raw.includes("#sync=") ? raw.split("#sync=")[1] : raw;
+  try {
+    mergeState(await decodeSync(payload.trim()));
+    device.lastImportAt = now();
+    save();
+    return true;
+  } catch { return false; }
+}
+
+async function copySyncCode() {
+  const code = await encodeSync();
+  try { await navigator.clipboard.writeText(code); toast("Sync-Code kopiert 📋"); }
+  catch { prompt("Code kopieren:", code); }
+  device.lastShareAt = now();
+  save();
+  if (tab === "profile") render();
+}
+
+async function applySyncCode() {
+  const raw = $("#codeInput").value.trim();
+  if (!raw) return toast("Füg zuerst einen Code ein");
+  if (await importFromText(raw)) {
+    render();
+    toast("Code übernommen – ihr seid synchron ✨");
+  } else {
+    toast("Dieser Code konnte nicht gelesen werden");
   }
 }
 
@@ -1049,14 +1089,36 @@ function openSetup() {
         <button class="who-pick" data-who="p2" aria-pressed="${device.me === "p2"}">${esc(displayName("p2"))}</button>
       </div>
       <button class="primary-btn" id="setupGo">Los geht's!</button>
+      <button class="sub-btn" id="setupCodeToggle">Ich habe schon einen Sync-Code oder QR-Link</button>
+      <div id="setupCodeRow" hidden>
+        <input id="setupCodeInput" placeholder="Code oder Link einfügen …" autocomplete="off">
+        <button class="primary-btn" id="setupCodeApply" style="margin-top:10px">Code übernehmen</button>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
 
-  overlay.addEventListener("click", (e) => {
+  overlay.addEventListener("click", async (e) => {
     const who = e.target.closest(".who-pick");
     if (who) {
       device.me = who.dataset.who;
       overlay.querySelectorAll(".who-pick").forEach((b) => b.setAttribute("aria-pressed", String(b === who)));
+      return;
+    }
+    if (e.target.id === "setupCodeToggle") {
+      overlay.querySelector("#setupCodeRow").hidden = false;
+      overlay.querySelector("#setupCodeInput").focus();
+      return;
+    }
+    if (e.target.id === "setupCodeApply") {
+      const raw = overlay.querySelector("#setupCodeInput").value.trim();
+      if (!raw) return toast("Füg zuerst den Code ein");
+      if (await importFromText(raw)) {
+        overlay.remove(); render();
+        toast("Stand übernommen – sag nur noch, wer du bist ✨");
+        openSetup(); // Namen sind jetzt vorausgefüllt, nur noch „wer bin ich“ wählen
+      } else {
+        toast("Dieser Code konnte nicht gelesen werden");
+      }
       return;
     }
     if (e.target.id === "setupGo") {
