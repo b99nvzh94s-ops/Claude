@@ -4,6 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#F2F5F1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#131A17" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
 
 <style>
   :root {
@@ -486,6 +487,7 @@ async function autoSyncTick() {
       const a = document.activeElement;
       const typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && a.value;
       if (!typing && !document.querySelector(".overlay")) render();
+      notifyPartnerNews();
     } else if (tab === "profile") {
       const el = $("#autoSyncStatus");
       if (el) el.textContent = autoSyncStatusText();
@@ -521,6 +523,45 @@ async function enableAutoSync() {
     toast("Klappt auf dieser Seite leider nicht – Details stehen im Profil");
   }
 }
+/* ---------- Benachrichtigungen bei Partner-Aktivität ---------- */
+function partnerNews() {
+  if (!device.me) return [];
+  const cutoff = device.notifiedUpTo || 0;
+  return [
+    ...alive(state.completions)
+      .filter((c) => c.playerId !== device.me && c.ts > cutoff)
+      .map((c) => ({ ts: c.ts, text: `${displayName(c.playerId)} hat „${c.title}“ erledigt (+${c.points} P) 🎉` })),
+    ...alive(state.redemptions)
+      .filter((r) => r.playerId !== device.me && r.ts > cutoff)
+      .map((r) => ({ ts: r.ts, text: `${displayName(r.playerId)} hat sich „${r.title}“ gegönnt (−${r.cost} P) 🎁` })),
+  ].sort((a, b) => a.ts - b.ts);
+}
+async function notifyPartnerNews() {
+  const news = partnerNews();
+  if (!news.length) return;
+  device.notifiedUpTo = news[news.length - 1].ts;
+  save();
+  toast(news[news.length - 1].text);
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    for (const n of news.slice(-3)) {
+      try {
+        const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+        if (reg && reg.showNotification) reg.showNotification("Klarschiff 🧹", { body: n.text, tag: "klarschiff-" + n.ts });
+        else new Notification("Klarschiff 🧹", { body: n.text, tag: "klarschiff-" + n.ts });
+      } catch { break; }
+    }
+  }
+}
+async function askNotifications() {
+  try {
+    const p = await Notification.requestPermission();
+    render();
+    toast(p === "granted" ? "Benachrichtigungen sind an 🔔" : "Keine Erlaubnis erteilt");
+  } catch {
+    toast("Ging nicht – ist die App vom Home-Bildschirm aus geöffnet?");
+  }
+}
+
 function autoSyncStatusText() {
   if (!syncStatus.lastOkAt) return "Verbinde …";
   const s = Math.max(0, Math.round((now() - syncStatus.lastOkAt) / 1000));
@@ -953,6 +994,24 @@ function viewProfile() {
         <button class="primary-btn" id="autoSyncBtn">Automatischen Sync einschalten</button>
       `}
     </div>
+    <div class="section-head"><h2>Benachrichtigungen</h2></div>
+    <div class="form-card">
+      ${(() => {
+        if (typeof Notification === "undefined") {
+          return `<p class="hint">Auf diesem Gerät hier nicht verfügbar. Auf dem iPhone gibt es Mitteilungen, sobald Klarschiff über „Zum Home-Bildschirm“ installiert ist und von dort geöffnet wird – dann erscheint hier der Schalter.</p>`;
+        }
+        if (Notification.permission === "granted") {
+          return `<p class="hint">✅ <strong>An.</strong> Sobald dein Schatz etwas erledigt oder einlöst, bekommst du eine Mitteilung – während die App offen ist oder direkt beim nächsten Öffnen.</p>`;
+        }
+        if (Notification.permission === "denied") {
+          return `<p class="hint">Aktuell abgelehnt. Zum Einschalten: iPhone-Einstellungen → Mitteilungen → Klarschiff → erlauben.</p>`;
+        }
+        const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+        return `
+          <p class="hint">Bekomm eine Mitteilung, wenn dein Schatz etwas erledigt („Anna hat ‚Geschirr‘ erledigt +10 P“) – und umgekehrt.${standalone ? "" : " <strong>Wichtig fürs iPhone:</strong> Erst über „Zum Home-Bildschirm“ installieren und von dort öffnen, sonst zeigt iOS die Nachfrage nicht."}</p>
+          <button class="primary-btn" id="notifBtn">Benachrichtigungen aktivieren 🔔</button>`;
+      })()}
+    </div>
     <div class="section-head"><h2>Gemeinsamer Stand</h2></div>
     <div class="form-card">
       <p class="hint">Alles wird sofort auf diesem Handy gespeichert. Mit QR-Code oder Sync-Link wandert immer der <strong>komplette</strong> Stand aufs andere Handy und wird zusammengeführt – nichts geht verloren.${state.room ? "" : " Nach ein paar erledigten Sachen einfach kurz teilen, dann seht ihr beide dasselbe."}</p>
@@ -1015,6 +1074,7 @@ function bindMain() {
     if (e.target.id === "codeCopyBtn") copySyncCode();
     if (e.target.id === "codeApplyBtn") applySyncCode();
     if (e.target.id === "autoSyncBtn") enableAutoSync();
+    if (e.target.id === "notifBtn") askNotifications();
   };
 
   main.onchange = (e) => {
@@ -1074,7 +1134,9 @@ async function importFromText(raw) {
   try {
     mergeState(await decodeSync(payload.trim()));
     device.lastImportAt = now();
+    if (device.notifiedUpTo == null) device.notifiedUpTo = now(); // Beitritt: alte Historie nicht nachmelden
     save();
+    notifyPartnerNews();
     return true;
   } catch { return false; }
 }
@@ -1240,6 +1302,10 @@ async function boot() {
   }
   render();
   if (!device.me || state.players.some((p) => !p.name)) openSetup();
+  if (device.notifiedUpTo == null) { device.notifiedUpTo = now(); save(); }
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register("./sw.js").catch(() => { /* z. B. Artifact-Hosting */ });
+  }
   autoSyncTick();
   setInterval(autoSyncTick, SYNC_INTERVAL);
   document.addEventListener("visibilitychange", () => {

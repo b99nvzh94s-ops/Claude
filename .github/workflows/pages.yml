@@ -28,7 +28,7 @@ jobs:
       - name: Stage site
         run: |
           mkdir _site
-          cp index.html _site/
+          cp index.html sw.js icon.png _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
