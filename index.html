@@ -463,6 +463,7 @@
 "use strict";
 
 /* ---------- Persistenz ---------- */
+const KLARSCHIFF_BUILD = "__KLARSCHIFF_BUILD__"; // wird beim Pages-Deploy ersetzt
 const LS_STATE = "klarschiff.state.v1";
 const LS_DEVICE = "klarschiff.device.v1";
 const now = () => Date.now();
@@ -1655,6 +1656,7 @@ function viewProfile() {
     <div class="form-card">
       <span class="form-label">Tipp fürs iPhone</span>
       <p class="hint">In Safari: Teilen-Symbol → „Zum Home-Bildschirm“. Dann startet Klarschiff wie eine echte App im Vollbild – mit eigenem Icon.</p>
+      ${KLARSCHIFF_BUILD.startsWith("__") ? "" : `<p class="hint">Version: ${esc(KLARSCHIFF_BUILD)} – zeigt dein Handy eine ältere? App komplett schließen und neu öffnen.</p>`}
     </div>`;
 }
 

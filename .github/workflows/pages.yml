@@ -21,6 +21,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html sw.js icon.png _site/
+          sed -i "s|__KLARSCHIFF_BUILD__|$(git rev-parse --short HEAD) · $(date -u '+%d.%m.%Y %H:%M') UTC|" _site/index.html
       - name: Push to gh-pages branch
         run: |
           cd _site
