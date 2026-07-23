@@ -234,6 +234,23 @@
     box-shadow: 0 4px 14px rgba(233, 180, 92, .45);
   }
   .spin-btn[disabled] { opacity: .5; }
+  .daytable { width: 100%; border-collapse: collapse; }
+  .daytable th {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); text-align: left; padding: 2px 6px 8px;
+  }
+  .daytable th .pdot { margin-right: 5px; vertical-align: middle; }
+  .daytable th.pcol, .daytable td.pcol { text-align: center; width: 58px; }
+  .daytable td { border-top: 1px solid var(--line); padding: 7px 6px; font-size: 14px; }
+  .daytable .t-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; }
+  .daytable .t-name .pdot { flex: none; }
+  .cell {
+    width: 36px; height: 36px; border-radius: 50%; font-size: 15px;
+    display: inline-grid; place-items: center; background: var(--card-2); color: var(--line);
+  }
+  .cell.done-p1 { background: var(--p1c); color: #fff; }
+  .cell.done-p2 { background: var(--p2c); color: #fff; }
+  .cell.skip { background: transparent; color: var(--danger); font-size: 17px; }
   .day-chip {
     font-family: var(--display); font-weight: 700; font-size: 13px;
     width: 40px; min-height: 38px; border: 1.5px solid var(--line);
@@ -451,13 +468,15 @@ function freshState() {
       { id: "p1", name: "", updatedAt: 0 },
       { id: "p2", name: "", updatedAt: 0 },
     ],
-    tasks: [],        // {id,title,points,assignee,week,createdAt,archived,updatedAt}
-    completions: [],  // {id,taskId,title,points,bonus,playerId,day,ts,deleted,updatedAt}
+    tasks: [],        // {id,title,points,assignee,kind,days,week,createdAt,archived,updatedAt}
+    completions: [],  // {id,taskId,title,points,bonus,spot,crit,wheel,playerId,day,ts,deleted,updatedAt}
     rewards: [],      // {id,title,cost,createdAt,archived,updatedAt}
     redemptions: [],  // {id,rewardId,title,cost,playerId,ts,deleted,updatedAt}
+    skips: [],        // {id,taskId,playerId,day,ts,deleted,updatedAt} – „heute nicht geschafft“
   };
 }
 let state = load(LS_STATE) || freshState();
+state.skips = state.skips || []; // Migration älterer Stände
 let device = load(LS_DEVICE) || { me: null };
 
 function load(key) {
@@ -615,9 +634,18 @@ function spotlightTaskId() {
   for (const ch of dayKey()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return due[h % due.length].id;
 }
-/* ---------- Samstags-Glücksrad ---------- */
-const WHEEL_PRIZES = [5, 25, 10, 50, 15, 30, 20, 100];
-const WHEEL_COLORS = ["#0FA38A", "#A855F7", "#E9B45C", "#1F6F54", "#0FA38A", "#A855F7", "#E9B45C", "#C2410C"];
+/* ---------- Samstags-Glücksrad (gewichtete Segmente) ---------- */
+// Landewahrscheinlichkeit = Bogenlänge: Niete ~17 %, 💰100 nur 3,3 %
+const WHEEL_SEGS = [
+  { v: 0, deg: 60, c: "#8B9890", label: "Niete" },
+  { v: 5, deg: 62, c: "#0FA38A" },
+  { v: 10, deg: 60, c: "#A855F7" },
+  { v: 15, deg: 50, c: "#1F6F54" },
+  { v: 20, deg: 45, c: "#E9B45C" },
+  { v: 25, deg: 40, c: "#0FA38A" },
+  { v: 50, deg: 31, c: "#A855F7" },
+  { v: 100, deg: 12, c: "#C2410C", label: "💰100" },
+];
 const isWheelDay = () => todayIdx() === 5 || !!localStorage.getItem("klarschiff.wheelday");
 const myWheelSpinToday = () =>
   alive(state.completions).find((c) => c.wheel && c.playerId === device.me && c.day === dayKey());
@@ -625,24 +653,29 @@ function daysUntilSaturday() {
   return (5 - todayIdx() + 7) % 7 || 7;
 }
 function drawWheel(canvas) {
-  const n = WHEEL_PRIZES.length, size = 560, r = size / 2;
+  const size = 560, r = size / 2;
   canvas.width = canvas.height = size;
   const g = canvas.getContext("2d");
-  for (let i = 0; i < n; i++) {
-    const a0 = (-90 + i * (360 / n)) * Math.PI / 180;
-    const a1 = (-90 + (i + 1) * (360 / n)) * Math.PI / 180;
+  let start = -90;
+  for (const s of WHEEL_SEGS) {
+    const a0 = (start * Math.PI) / 180, a1 = ((start + s.deg) * Math.PI) / 180;
     g.beginPath(); g.moveTo(r, r); g.arc(r, r, r - 4, a0, a1); g.closePath();
-    g.fillStyle = WHEEL_COLORS[i]; g.fill();
+    g.fillStyle = s.c; g.fill();
     g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = 3; g.stroke();
     const mid = (a0 + a1) / 2;
     g.save();
-    g.translate(r + Math.cos(mid) * r * 0.62, r + Math.sin(mid) * r * 0.62);
-    g.rotate(mid + Math.PI / 2);
-    g.fillStyle = "#fff";
-    g.font = `800 ${WHEEL_PRIZES[i] === 100 ? 46 : 40}px ui-rounded, -apple-system, sans-serif`;
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText(WHEEL_PRIZES[i] === 100 ? "💰100" : String(WHEEL_PRIZES[i]), 0, 0);
+    g.translate(r + Math.cos(mid) * r * 0.6, r + Math.sin(mid) * r * 0.6);
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+    if (s.deg < 22) { // schmaler Splitter: Text radial nach außen
+      g.rotate(mid);
+      g.font = "800 26px ui-rounded, -apple-system, sans-serif";
+    } else {
+      g.rotate(mid + Math.PI / 2);
+      g.font = `800 ${s.v === 0 ? 30 : 38}px ui-rounded, -apple-system, sans-serif`;
+    }
+    g.fillText(s.label || String(s.v), 0, 0);
     g.restore();
+    start += s.deg;
   }
   g.beginPath(); g.arc(r, r, 34, 0, Math.PI * 2);
   g.fillStyle = "#fff"; g.fill();
@@ -658,21 +691,31 @@ function spinWheel() {
   if (!canvas) return;
   wheelSpinning = true;
   if (btn) btn.disabled = true;
-  const idx = Math.floor(Math.random() * WHEEL_PRIZES.length);
-  const prize = WHEEL_PRIZES[idx];
-  const segment = 360 / WHEEL_PRIZES.length;
-  const target = 6 * 360 + (360 - (idx * segment + segment / 2));
+  // Segment flächengewichtet auslosen, dann mit Randabstand darin landen
+  const roll = Math.random() * 360;
+  let cum = 0, seg = WHEEL_SEGS[0], segStart = 0;
+  for (const s of WHEEL_SEGS) {
+    if (roll < cum + s.deg) { seg = s; segStart = cum; break; }
+    cum += s.deg;
+  }
+  const pad = Math.min(3, seg.deg / 4);
+  const angle = segStart + pad + Math.random() * (seg.deg - pad * 2);
+  const target = 6 * 360 + (360 - angle);
   canvas.style.transition = "transform 4.2s cubic-bezier(.12,.68,.08,1)";
   canvas.style.transform = `rotate(${target}deg)`;
   canvas.addEventListener("transitionend", () => {
     state.completions.push({
-      id: uid(), taskId: null, title: "Glücksrad", points: prize, bonus: 0, wheel: 1,
+      id: uid(), taskId: null, title: "Glücksrad", points: seg.v, bonus: 0, wheel: 1, wheelAngle: angle,
       playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
     });
     wheelSpinning = false;
     save(); render();
-    confetti(innerWidth / 2, innerHeight / 3, prize === 100 ? { glyphs: ["💰", "🎡", "✨", "🤑"], n: 44 } : { glyphs: ["🎡", "✨"], n: 30 });
-    toast(prize === 100 ? "💰 JACKPOT! 100 Punkte!!!" : `🎡 ${prize} P gewonnen – Glückwunsch!`);
+    if (seg.v > 0) {
+      confetti(innerWidth / 2, innerHeight / 3, seg.v === 100 ? { glyphs: ["💰", "🎡", "✨", "🤑"], n: 44 } : { glyphs: ["🎡", "✨"], n: 30 });
+    }
+    toast(seg.v === 100 ? "💰 JACKPOT! 100 Punkte!!!"
+      : seg.v === 0 ? "Niete 😅 Nächsten Samstag neue Chance!"
+      : `🎡 ${seg.v} P gewonnen – Glückwunsch!`);
   }, { once: true });
 }
 
@@ -721,6 +764,10 @@ function todaysCompletion(taskId) {
   const day = dayKey();
   return alive(state.completions).find((c) => c.taskId === taskId && c.day === day);
 }
+function skipOf(taskId, playerId) {
+  const day = dayKey();
+  return alive(state.skips).find((s) => s.taskId === taskId && s.playerId === playerId && s.day === day);
+}
 
 /* ---------- Merge (Sync) ---------- */
 function mergeById(mine, theirs) {
@@ -737,8 +784,8 @@ function mergeState(incoming) {
     const t = (incoming.players || []).find((x) => x.id === p.id);
     return t && (t.updatedAt || 0) > (p.updatedAt || 0) ? t : p;
   });
-  for (const key of ["tasks", "completions", "rewards", "redemptions"]) {
-    state[key] = mergeById(state[key], incoming[key] || []);
+  for (const key of ["tasks", "completions", "rewards", "redemptions", "skips"]) {
+    state[key] = mergeById(state[key] || [], incoming[key] || []);
   }
   // Sync-Raum: beide Geräte einigen sich deterministisch auf den ältesten
   if (incoming.room && (!state.room || incoming.room.createdAt < state.room.createdAt)) {
@@ -855,7 +902,7 @@ function partnerNews() {
       .map((c) => ({
         ts: c.ts,
         text: c.wheel
-          ? `${displayName(c.playerId)} hat am Glücksrad ${c.points} P gewonnen 🎡`
+          ? (c.points > 0 ? `${displayName(c.playerId)} hat am Glücksrad ${c.points} P gewonnen 🎡` : `${displayName(c.playerId)} hat am Glücksrad eine Niete gedreht 🎡😅`)
           : `${displayName(c.playerId)} hat „${c.title}“ erledigt (+${c.points} P) 🎉`,
       })),
     ...alive(state.redemptions)
@@ -1206,7 +1253,7 @@ function taskCardHtml(t) {
     <span class="pts-badge">+${t.points} P</span>
     <button class="more-btn" data-act="menu" aria-label="Optionen">⋯</button>
   </li>
-  ${openMenuTask === t.id ? `<li class="task-menu"><button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
+  ${openMenuTask === t.id ? `<li class="task-menu">${!done && device.me ? `<button class="ghost-btn" data-id="${t.id}" data-act="skip">${skipOf(t.id, device.me) ? "✕ zurücknehmen" : "Heute nicht geschafft ✕"}</button>` : ""}<button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
 }
 
 function viewTasks() {
@@ -1244,6 +1291,36 @@ function viewTasks() {
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
     ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
     ${isWheelDay() && !myWheelSpinToday() ? `<button class="install-hint" data-act="gowheel" style="width:100%;text-align:left">🎡 <strong>Glücksrad-Samstag!</strong> Dein Gratis-Dreh wartet im Duell-Tab →</button>` : ""}
+    ${(() => {
+      const todayTasks = [...due, ...oneOffs];
+      if (!todayTasks.length) return "";
+      const cell = (t, pid) => {
+        const done = todaysCompletion(t.id);
+        if (done && done.playerId === pid) return `<button class="cell done-${pid}" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Erledigt von ${esc(displayName(pid))}">✓</button>`;
+        if (skipOf(t.id, pid)) return `<button class="cell skip" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Heute nicht geschafft">✕</button>`;
+        return `<button class="cell" data-act="cell" data-id="${t.id}" data-pid="${pid}" aria-label="Offen">·</button>`;
+      };
+      return `
+      <div class="section-head"><h2>Heute im Blick</h2></div>
+      <div class="form-card" style="padding:14px 10px 8px">
+        <table class="daytable">
+          <thead><tr>
+            <th>Aufgabe</th>
+            <th class="pcol"><span class="pdot p1"></span>${esc(displayName("p1"))}</th>
+            <th class="pcol"><span class="pdot p2"></span>${esc(displayName("p2"))}</th>
+          </tr></thead>
+          <tbody>
+            ${todayTasks.map((t) => `
+            <tr>
+              <td><span class="t-name">${t.assignee ? `<span class="pdot ${t.assignee}"></span>` : ""}${spotlightTaskId() === t.id ? "✨ " : ""}${esc(t.title)}</span></td>
+              <td class="pcol">${cell(t, "p1")}</td>
+              <td class="pcol">${cell(t, "p2")}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+        <p class="hint" style="padding:8px 6px 6px">Tippe in deiner Spalte: Punkt = abhaken. „Heute nicht geschafft“ findest du im ⋯-Menü der Aufgabe – ganz ohne Drama.</p>
+      </div>`;
+    })()}
     ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
     <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
     ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
@@ -1433,16 +1510,16 @@ function viewDuel() {
         if (!isWheelDay()) {
           const d = daysUntilSaturday();
           return `
-            <p class="hint">Jeden Samstag darf jede:r <strong>einmal</strong> am Rad drehen – 5 bis 💰 100 Punkte warten. Noch ${d === 1 ? "1 Tag" : d + " Tage"} bis zum nächsten Dreh!</p>
+            <p class="hint">Jeden Samstag darf jede:r <strong>einmal</strong> am Rad drehen – von Niete bis 💰 100-Punkte-Jackpot. Noch ${d === 1 ? "1 Tag" : d + " Tage"} bis zum nächsten Dreh!</p>
             <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, erst am Samstag drehbar"></canvas></div>`;
         }
         if (spun) {
           return `
-            <p class="hint">🎉 Du hast heute <strong>${spun.points} P</strong> gewonnen! Nächsten Samstag geht's weiter.</p>
+            <p class="hint">${spun.points > 0 ? `🎉 Du hast heute <strong>${spun.points} P</strong> gewonnen!` : "😅 Heute leider eine <strong>Niete</strong> – kommt vor!"} Nächsten Samstag geht's weiter.</p>
             <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, heute schon gedreht"></canvas></div>`;
         }
         return `
-          <p class="hint">Es ist Samstag – dein Dreh! Einmal pro Person, 5 bis 💰 100 Punkte.</p>
+          <p class="hint">Es ist Samstag – dein Dreh! Einmal pro Person, von Niete bis 💰 100-Punkte-Jackpot.</p>
           <div class="wheel-wrap"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad"></canvas></div>
           <button class="spin-btn" id="spinBtn" data-act="spin">Drehen! 🎡</button>`;
       })()}
@@ -1469,7 +1546,7 @@ function viewHistory() {
     ...alive(state.completions).map((c) => ({
       ts: c.ts, ico: c.wheel ? "🎡" : c.crit ? "💥" : c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
       text: c.wheel
-        ? `<strong>${esc(displayName(c.playerId))}</strong> hat am Glücksrad gewonnen${c.points >= 100 ? " – JACKPOT! 💰" : ""}`
+        ? `<strong>${esc(displayName(c.playerId))}</strong> hat am Glücksrad ${c.points > 0 ? "gewonnen" : "eine Niete gedreht 😬"}${c.points >= 100 ? " – JACKPOT! 💰" : ""}`
         : `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.crit ? " – kritischer Treffer!" : c.bonus ? " – mit Bonus" : ""}${c.spot ? " ✨" : ""}`,
     })),
     ...alive(state.redemptions).map((r) => ({
@@ -1637,6 +1714,19 @@ function bindMain() {
       if (act === "peek") return toast(btn.dataset.info);
       if (act === "spin") return spinWheel();
       if (act === "gowheel") return selectTab("duel");
+      if (act === "skip") return toggleSkip(id);
+      if (act === "cell") {
+        const pid = btn.dataset.pid;
+        if (pid !== device.me) {
+          const d = todaysCompletion(id);
+          return toast(d && d.playerId === pid
+            ? `${displayName(pid)} hat's erledigt (${fmtTime(d.ts)})`
+            : `Das ist ${displayName(pid)}s Spalte 😉`);
+        }
+        const sk = skipOf(id, pid);
+        if (sk) { sk.deleted = now(); sk.updatedAt = now(); save(); render(); return toast("Wieder offen – du schaffst das 💪"); }
+        return toggleComplete(id, e);
+      }
     }
     if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); $("#taskTitle")?.focus(); }
     if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
@@ -1712,8 +1802,12 @@ function bindMain() {
       drawWheel(wc);
       const spun = myWheelSpinToday();
       if (spun) {
-        const idx = WHEEL_PRIZES.indexOf(spun.points);
-        if (idx >= 0) wc.style.transform = `rotate(${360 - (idx * (360 / WHEEL_PRIZES.length) + 180 / WHEEL_PRIZES.length)}deg)`;
+        let angle = spun.wheelAngle;
+        if (angle == null) {
+          let cum = 0;
+          for (const s of WHEEL_SEGS) { if (s.v === spun.points) { angle = cum + s.deg / 2; break; } cum += s.deg; }
+        }
+        if (angle != null) wc.style.transform = `rotate(${360 - angle}deg)`;
       }
     }
     requestAnimationFrame(() => {
@@ -1836,6 +1930,20 @@ function toggleComplete(taskId, e) {
       confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎖", "🧹", "✨", "🫧"], n: 40 });
     }, 1800);
   }
+}
+
+function toggleSkip(taskId) {
+  if (!device.me) return openSetup();
+  const ex = skipOf(taskId, device.me);
+  if (ex) {
+    ex.deleted = now(); ex.updatedAt = now();
+    toast("Wieder offen – du schaffst das 💪");
+  } else {
+    if (todaysCompletion(taskId)) { openMenuTask = null; return toast("Ist ja schon erledigt 🎉"); }
+    state.skips.push({ id: uid(), taskId, playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now() });
+    toast("Okay, heute nicht – morgen ist auch ein Tag 💚");
+  }
+  openMenuTask = null; save(); render();
 }
 
 function archiveReward(rewardId) {
