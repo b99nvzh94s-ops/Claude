@@ -184,6 +184,13 @@
     border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 15px;
   }
   .pt-chip[aria-pressed="true"] { background: var(--coin-soft); border-color: var(--coin); color: var(--coin); }
+  .day-chip {
+    font-family: var(--display); font-weight: 700; font-size: 13px;
+    width: 40px; min-height: 38px; border: 1.5px solid var(--line);
+    background: var(--card-2); border-radius: 10px;
+  }
+  .day-chip[aria-pressed="true"] { background: var(--spruce-soft); border-color: var(--spruce); color: var(--spruce); }
+  .task.notdue { opacity: .6; }
   .sug-chip {
     font-size: 13px; border: 1px dashed var(--line); background: transparent;
     color: var(--muted); border-radius: 999px; padding: 7px 12px; min-height: 36px;
@@ -460,16 +467,35 @@ function streak(playerId) {
   while (days.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
-// Wochen-Kontingent pro Person: „Beide“-Aufgaben zählen bei beiden
+// Wochen-Kontingent pro Person: „Beide“-Aufgaben zählen bei beiden,
+// Einmal-Aufgaben zählen gar nicht (das Limit schützt vor zu vielen neuen Gewohnheiten)
 function laneCounts() {
   const w = isoWeek();
   const c = { p1: 0, p2: 0 };
   for (const t of state.tasks) {
-    if (t.week !== w) continue;
+    if (t.week !== w || t.kind === "once") continue;
     if (t.assignee) c[t.assignee]++;
     else { c.p1++; c.p2++; }
   }
   return c;
+}
+
+const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const todayIdx = () => (new Date().getDay() + 6) % 7;
+function isDueToday(t) {
+  const ds = t.days;
+  if (!ds || !ds.length || ds.length === 7) return true;
+  return ds.includes(todayIdx());
+}
+function daysLabel(t) {
+  return !t.days || !t.days.length || t.days.length === 7 ? "täglich" : t.days.map((i) => DAY_NAMES[i]).join("·");
+}
+function nextDueName(t) {
+  for (let i = 1; i <= 7; i++) {
+    const d = (todayIdx() + i) % 7;
+    if (t.days.includes(d)) return DAY_NAMES[d];
+  }
+  return "";
 }
 function earnedTotal(playerId) {
   return alive(state.completions).filter((c) => c.playerId === playerId).reduce((s, c) => s + c.points, 0);
@@ -912,10 +938,43 @@ function renderScoreboard() {
   }).join("");
 }
 
+function taskCardHtml(t) {
+  const done = todaysCompletion(t.id);
+  const once = t.kind === "once";
+  const notDue = !once && !isDueToday(t);
+  let sub;
+  if (done) {
+    sub = `Heute erledigt von ${esc(displayName(done.playerId))}` + (done.bonus ? ` · +${done.bonus} P Bonus 🏅` : "");
+  } else {
+    const bits = [];
+    if (once) bits.push("Einmalig");
+    else if (notDue) bits.push(`Erst ${nextDueName(t)} dran`);
+    else if (daysLabel(t) !== "täglich") bits.push(daysLabel(t));
+    if (t.assignee) bits.push(`${esc(displayName(t.assignee))}s Aufgabe · ${esc(displayName(otherOf(t.assignee)))} bekäme ${t.points + bonusFor(t.points)} P 🏅`);
+    else if (once) bits.push("wer's macht, kassiert");
+    else if (!notDue) bits.push("Heute noch offen – für beide");
+    sub = bits.join(" · ") || "Für beide";
+  }
+  return `
+  <li class="task ${done ? "done" : ""} ${notDue ? "notdue" : ""}" data-id="${t.id}">
+    <button class="check" data-act="check" aria-label="${done ? "Erledigung zurücknehmen" : "Als erledigt markieren"}">✓</button>
+    <div class="task-body">
+      <div class="task-title">${esc(t.title)}</div>
+      <div class="task-sub">${sub}</div>
+    </div>
+    <span class="pts-badge">+${t.points} P</span>
+    <button class="more-btn" data-act="menu" aria-label="Optionen">⋯</button>
+  </li>
+  ${openMenuTask === t.id ? `<li class="task-menu"><button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
+}
+
 function viewTasks() {
   const lanes = laneCounts();
-  const allFull = lanes.p1 >= WEEKLY_NEW_TASKS && lanes.p2 >= WEEKLY_NEW_TASKS;
   const tasks = state.tasks.filter((t) => !t.archived);
+  const recurring = tasks.filter((t) => t.kind !== "once");
+  const oneOffs = tasks.filter((t) => t.kind === "once");
+  const due = recurring.filter(isDueToday), later = recurring.filter((t) => !isDueToday(t));
+  const orderedRecurring = [...due.filter((t) => !todaysCompletion(t.id)), ...due.filter((t) => todaysCompletion(t.id)), ...later];
   const dotsFor = (used) => Array.from({ length: WEEKLY_NEW_TASKS }, (_, i) => `<span class="dot ${i < used ? "used" : ""}"></span>`).join("");
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
@@ -938,35 +997,15 @@ function viewTasks() {
     </div>
     <div class="section-head">
       <h2>Unsere Aufgaben</h2>
-      <button class="add-btn" id="addTaskBtn" ${allFull && !addingTask ? "disabled" : ""}>+ Neu</button>
+      <button class="add-btn" id="addTaskBtn">+ Neu</button>
     </div>
     ${addingTask || editingTask ? taskFormHtml() : ""}
-    ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue pro Woche an – klein anfangen wirkt am besten!</div>` : ""}
-    <ul class="cards">
-      ${[...tasks.filter((t) => !todaysCompletion(t.id)), ...tasks.filter((t) => todaysCompletion(t.id))].map((t) => {
-        const done = todaysCompletion(t.id);
-        let sub;
-        if (done) {
-          sub = `Heute erledigt von ${esc(displayName(done.playerId))}` + (done.bonus ? ` · +${done.bonus} P Bonus 🏅` : "");
-        } else if (t.assignee) {
-          sub = `${esc(displayName(t.assignee))}s Aufgabe · ${esc(displayName(otherOf(t.assignee)))} bekäme ${t.points + bonusFor(t.points)} P 🏅`;
-        } else {
-          sub = "Heute noch offen – für beide";
-        }
-        return `
-        <li class="task ${done ? "done" : ""}" data-id="${t.id}">
-          <button class="check" data-act="check" aria-label="${done ? "Erledigung zurücknehmen" : "Als erledigt markieren"}">✓</button>
-          <div class="task-body">
-            <div class="task-title">${esc(t.title)}</div>
-            <div class="task-sub">${sub}</div>
-          </div>
-          <span class="pts-badge">+${t.points} P</span>
-          <button class="more-btn" data-act="menu" aria-label="Optionen">⋯</button>
-        </li>
-        ${openMenuTask === t.id ? `<li class="task-menu"><button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
-      }).join("")}
-    </ul>
-    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat 3 neue pro Woche frei. Nochmal tippen macht's rückgängig (nur am selben Tag).</p>`;
+    ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
+    ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
+    <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
+    ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
+    <ul class="cards">${oneOffs.map(taskCardHtml).join("")}</ul>` : ""}
+    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat 3 neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst.</p>`;
 }
 
 const TASK_SUGGESTIONS = [
@@ -982,10 +1021,23 @@ function taskFormHtml() {
   const t = editingTask ? state.tasks.find((x) => x.id === editingTask) : null;
   const [diff, dur] = t ? diffDurOf(t) : [10, 1];
   const who = t ? (t.assignee || "") : "";
+  const kind = t ? (t.kind === "once" ? "once" : "daily") : "daily";
+  const days = t && t.days ? t.days : [];
   return `
     <form class="form-card" id="taskForm">
       <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
       ${t ? "" : `<div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
+      <span class="form-label">Art der Aufgabe</span>
+      <div class="point-row" id="taskKind">
+        <button type="button" class="pt-chip" data-kind="daily" aria-pressed="${kind === "daily"}">🔁 Regelmäßig</button>
+        <button type="button" class="pt-chip" data-kind="once" aria-pressed="${kind === "once"}">☑️ Einmalig</button>
+      </div>
+      <div id="daysRow" ${kind === "once" ? "hidden" : ""}>
+        <span class="form-label">An welchen Tagen? <span style="font-weight:400;text-transform:none;letter-spacing:0">(nichts gewählt = jeden Tag)</span></span>
+        <div class="point-row" id="taskDays" style="margin-top:8px">
+          ${DAY_NAMES.map((n, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${days.includes(i)}">${n}</button>`).join("")}
+        </div>
+      </div>
       <span class="form-label">Wessen Aufgabe ist das?</span>
       <div class="point-row" id="taskWho">
         <button type="button" class="pt-chip" data-who="" aria-pressed="${who === ""}">Beide</button>
@@ -1229,11 +1281,20 @@ function bindMain() {
   const main = $("#main");
 
   main.onclick = (e) => {
+    const day = e.target.closest(".day-chip");
+    if (day) {
+      day.setAttribute("aria-pressed", String(day.getAttribute("aria-pressed") !== "true"));
+      return;
+    }
     const chip = e.target.closest(".pt-chip");
     if (chip) {
       if (chip.dataset.metric) { duelMetric = chip.dataset.metric; return render(); }
       chip.parentElement.querySelectorAll(".pt-chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
       chip.setAttribute("aria-pressed", "true");
+      if (chip.parentElement.id === "taskKind") {
+        const dr = $("#daysRow");
+        if (dr) dr.hidden = chip.dataset.kind === "once";
+      }
       updateTaskCalc();
       return;
     }
@@ -1298,22 +1359,27 @@ function bindMain() {
     const diff = +$('#taskDiff .pt-chip[aria-pressed="true"]').dataset.val;
     const dur = +$('#taskDur .pt-chip[aria-pressed="true"]').dataset.val;
     const assignee = $('#taskWho .pt-chip[aria-pressed="true"]').dataset.who || null;
+    const kind = $('#taskKind .pt-chip[aria-pressed="true"]').dataset.kind;
+    let days = [...document.querySelectorAll('#taskDays .day-chip[aria-pressed="true"]')].map((b) => +b.dataset.day);
+    if (kind === "once" || days.length === 0 || days.length === 7) days = null;
     const points = Math.round(diff * dur);
     if (editingTask) {
       const t = state.tasks.find((x) => x.id === editingTask);
-      if (t) Object.assign(t, { title, points, assignee, diff, dur, updatedAt: now() });
+      if (t) Object.assign(t, { title, points, assignee, diff, dur, kind, days, updatedAt: now() });
       editingTask = null; save(); render();
       return toast("Aufgabe aktualisiert ✏️");
     }
-    const lanes = laneCounts();
-    const full = (assignee ? [assignee] : ["p1", "p2"]).find((l) => lanes[l] >= WEEKLY_NEW_TASKS);
-    if (full) return toast(`${displayName(full)} hat diese Woche schon 3 neue Aufgaben – ab Montag wieder!`);
+    if (kind !== "once") {
+      const lanes = laneCounts();
+      const full = (assignee ? [assignee] : ["p1", "p2"]).find((l) => lanes[l] >= WEEKLY_NEW_TASKS);
+      if (full) return toast(`${displayName(full)} hat diese Woche schon 3 neue Aufgaben – ab Montag wieder! (Einmal-Aufgaben gehen immer)`);
+    }
     state.tasks.push({
-      id: uid(), title, points, assignee, diff, dur,
+      id: uid(), title, points, assignee, diff, dur, kind, days,
       week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
     });
     addingTask = false; save(); render();
-    toast("Aufgabe angelegt ✨");
+    toast(kind === "once" ? "Einmal-Aufgabe angelegt ✨" : "Aufgabe angelegt ✨");
   });
 
   $("#rewardForm")?.addEventListener("submit", (e) => {
@@ -1426,11 +1492,14 @@ function toggleComplete(taskId, e) {
     id: uid(), taskId, title: task.title, points, bonus,
     playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
   });
+  if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
   save(); render();
   confetti(e.clientX || innerWidth / 2, e.clientY || innerHeight / 3);
-  toast(bonus
-    ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
-    : `+${points} P für dich! 🎉`);
+  toast(task.kind === "once"
+    ? `Einmal-Aufgabe erledigt und abgehakt ✅ +${points} P${bonus ? ` (mit ${bonus} P Bonus 🏅)` : ""}`
+    : bonus
+      ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
+      : `+${points} P für dich! 🎉`);
 }
 
 function archiveReward(rewardId) {
