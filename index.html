@@ -1,0 +1,2566 @@
+<title>Klarschiff – Aufräum-Spiel für uns zwei</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#F2F5F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131A17" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+  :root {
+    --paper: #F2F5F1;
+    --card: #FFFFFF;
+    --card-2: #E9EFE9;
+    --ink: #1F2D26;
+    --muted: #66756D;
+    --line: #DCE4DD;
+    --spruce: #1F6F54;
+    --spruce-ink: #FFFFFF;
+    --spruce-soft: #DDEDE5;
+    --coin: #B97A14;
+    --coin-soft: #F6E7C8;
+    --danger: #B3402F;
+    --shadow: 0 1px 2px rgba(31,45,38,.06), 0 6px 20px rgba(31,45,38,.07);
+    --display: ui-rounded, -apple-system, "SF Pro Rounded", system-ui, sans-serif;
+    --body: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    --p1c: #0FA38A; --p1c-2: #0B8A74; --p1-soft: rgba(15, 163, 138, .16);
+    --p2c: #A855F7; --p2c-2: #8E3DE0; --p2-soft: rgba(168, 85, 247, .16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #131A17;
+      --card: #1C2520;
+      --card-2: #232E28;
+      --ink: #E9EFEA;
+      --muted: #93A29A;
+      --line: #2C3831;
+      --spruce: #3FB98A;
+      --spruce-ink: #0E1F19;
+      --spruce-soft: #1E332B;
+      --coin: #E9B45C;
+      --coin-soft: #35301F;
+      --danger: #E5715C;
+      --shadow: 0 1px 2px rgba(0,0,0,.25), 0 6px 20px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #131A17;
+    --card: #1C2520;
+    --card-2: #232E28;
+    --ink: #E9EFEA;
+    --muted: #93A29A;
+    --line: #2C3831;
+    --spruce: #3FB98A;
+    --spruce-ink: #0E1F19;
+    --spruce-soft: #1E332B;
+    --coin: #E9B45C;
+    --coin-soft: #35301F;
+    --danger: #E5715C;
+    --shadow: 0 1px 2px rgba(0,0,0,.25), 0 6px 20px rgba(0,0,0,.3);
+  }
+  :root[data-theme="light"] {
+    --paper: #F2F5F1;
+    --card: #FFFFFF;
+    --card-2: #E9EFE9;
+    --ink: #1F2D26;
+    --muted: #66756D;
+    --line: #DCE4DD;
+    --spruce: #1F6F54;
+    --spruce-ink: #FFFFFF;
+    --spruce-soft: #DDEDE5;
+    --coin: #B97A14;
+    --coin-soft: #F6E7C8;
+    --danger: #B3402F;
+    --shadow: 0 1px 2px rgba(31,45,38,.06), 0 6px 20px rgba(31,45,38,.07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--body);
+    font-size: 16px;
+    background:
+      radial-gradient(70vw 45vh at 112% -8%, var(--p2-soft), transparent 70%),
+      radial-gradient(70vw 45vh at -12% 108%, var(--p1-soft), transparent 70%),
+      var(--paper);
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+  }
+  button {
+    font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--spruce); outline-offset: 2px; }
+  input {
+    font: inherit; font-size: 16px; /* <16px löst iOS-Autozoom beim Fokussieren aus */
+    color: var(--ink); background: var(--card-2);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; width: 100%; appearance: none; -webkit-appearance: none;
+  }
+  input::placeholder { color: var(--muted); }
+
+  #app {
+    max-width: 560px; margin: 0 auto; min-height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 6px;
+  }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+  .brand .broom { font-size: 17px; margin-right: 4px; }
+  .top-right { display: flex; gap: 8px; align-items: center; }
+  .chip {
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    background: var(--card-2); border: 1px solid var(--line);
+    padding: 5px 10px; border-radius: 999px;
+  }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px; font-size: 18px;
+    background: var(--card-2); border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+
+  .scoreboard {
+    margin: 8px 18px 4px; background: var(--card); border-radius: 20px;
+    box-shadow: var(--shadow); display: flex; overflow: hidden;
+  }
+  .score {
+    flex: 1; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .score + .score { border-left: 1px solid var(--line); }
+  .score .who { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .score .who .me-tag {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    background: var(--spruce-soft); color: var(--spruce); padding: 2px 6px; border-radius: 6px;
+  }
+  .score .pts {
+    font-family: var(--display); font-variant-numeric: tabular-nums;
+    font-size: 34px; font-weight: 800; line-height: 1.1; color: var(--coin);
+  }
+  .score .streak { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+  main { flex: 1; padding: 10px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .section-head h2 { font-family: var(--display); font-size: 17px; font-weight: 800; }
+  .hint { font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+  .budget {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 12px 14px;
+  }
+  .budget .dots { display: flex; gap: 6px; }
+  .budget .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--card-2); border: 1.5px solid var(--line); }
+  .budget .dot.used { background: var(--spruce); border-color: var(--spruce); }
+  .budget span { font-size: 13px; color: var(--muted); }
+  .budget strong { color: var(--ink); }
+
+  .add-btn {
+    background: linear-gradient(135deg, var(--spruce), var(--p1c)); color: var(--spruce-ink);
+    font-family: var(--display); font-weight: 700; font-size: 15px;
+    border-radius: 999px; padding: 9px 16px; min-height: 40px;
+    box-shadow: 0 4px 14px var(--p1-soft);
+  }
+  .add-btn[disabled] { opacity: .45; cursor: default; }
+
+  .form-card {
+    background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .form-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted);
+  }
+  .point-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pt-chip {
+    font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums;
+    border: 1.5px solid var(--line); background: var(--card-2);
+    border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 15px;
+  }
+  .pt-chip[aria-pressed="true"] { background: var(--coin-soft); border-color: var(--coin); color: var(--coin); }
+  .tab { position: relative; }
+  .tab-badge {
+    position: absolute; top: 5px; right: calc(50% - 27px);
+    background: var(--danger); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 999px; min-width: 16px; height: 16px;
+    display: grid; place-items: center; padding: 0 4px;
+  }
+  .feed-day {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); padding: 12px 4px 4px !important; border-bottom: 0 !important;
+  }
+  .rp { height: 6px; background: var(--card-2); border-radius: 999px; margin-top: 7px; overflow: hidden; }
+  .rp-fill { height: 100%; background: linear-gradient(90deg, var(--coin), #E9B45C); border-radius: 999px; }
+  .alldone {
+    text-align: center; font-family: var(--display); font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg, var(--spruce-soft), var(--coin-soft));
+    border-radius: 16px; padding: 16px;
+  }
+  .task.spotlite { box-shadow: var(--shadow), 0 0 0 2px var(--coin); }
+  .lvl-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .lvl-name { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 14px; }
+  .lvl-title { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .lvl-track { height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; margin: 6px 0 10px; }
+  .lvl-fill { height: 100%; border-radius: 999px; transition: width .7s cubic-bezier(.22, 1, .36, 1); }
+  .lvl-fill.p1 { background: linear-gradient(90deg, var(--p1c-2), var(--p1c)); }
+  .lvl-fill.p2 { background: linear-gradient(90deg, var(--p2c-2), var(--p2c)); }
+  .badge-owner { font-weight: 700; font-size: 13px; margin: 6px 0 6px; display: flex; align-items: center; gap: 7px; }
+  .badge-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    width: 42px; height: 42px; border-radius: 50%; font-size: 20px;
+    background: var(--card-2); border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .badge.locked { filter: grayscale(1); opacity: .32; }
+  .wheel-wrap { position: relative; display: grid; place-items: center; padding: 10px 0 4px; }
+  .wheel-wrap canvas { width: min(72vw, 280px); height: auto; }
+  .wheel-wrap.idle canvas { filter: grayscale(.65) opacity(.55); }
+  .wheel-pointer {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent;
+    border-top: 16px solid var(--ink); z-index: 2;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,.25));
+  }
+  .spin-btn {
+    background: linear-gradient(135deg, var(--coin), #E9B45C); color: #3A2A05;
+    font-family: var(--display); font-weight: 800; font-size: 16px;
+    border-radius: 999px; padding: 13px 26px; min-height: 50px;
+    box-shadow: 0 4px 14px rgba(233, 180, 92, .45);
+  }
+  .spin-btn[disabled] { opacity: .5; }
+  .pergrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .percol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .per-head { display: flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 800; font-size: 15px; padding-bottom: 2px; }
+  .per-head.shared { margin-top: 12px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-bottom: 0; }
+  .shared-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .col-task {
+    display: flex; align-items: center; gap: 7px; text-align: left;
+    background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 9px 10px; min-height: 44px; font-size: 13px;
+  }
+  .col-task .ct-status {
+    flex: none; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--card); color: var(--line); font-size: 12px;
+  }
+  .col-task.done-p1 .ct-status { background: var(--p1c); color: #fff; }
+  .col-task.done-p2 .ct-status { background: var(--p2c); color: #fff; }
+  .col-task.done .ct-title { text-decoration: line-through; color: var(--muted); }
+  .col-task.skipped .ct-status { background: transparent; color: var(--danger); font-size: 15px; }
+  .ct-title { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.25; font-weight: 600; }
+  .ct-pts { flex: none; font-family: var(--display); font-weight: 700; font-size: 11px; color: var(--coin); font-variant-numeric: tabular-nums; }
+  .sh-row { display: flex; gap: 10px; }
+  .sh-row .add-btn { flex: 1; }
+  .blitz-ring {
+    width: 190px; height: 190px; border-radius: 50%; margin: 8px auto;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--coin) 0%, var(--card-2) 0);
+  }
+  .blitz-inner { width: 156px; height: 156px; border-radius: 50%; background: var(--card); display: grid; place-items: center; }
+  #blitzTime { font-family: var(--display); font-weight: 800; font-size: 40px; font-variant-numeric: tabular-nums; }
+  .rou-title {
+    font-family: var(--display); font-weight: 800; font-size: 19px; text-align: center;
+    min-height: 60px; display: grid; place-items: center; padding: 10px 14px;
+    background: var(--card-2); border-radius: 14px; line-height: 1.3;
+  }
+  .empty-mini {
+    font-size: 12px; color: var(--muted); border: 1px dashed var(--line);
+    border-radius: 12px; padding: 10px; text-align: center;
+  }
+
+  .pet-card {
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, var(--spruce-soft), var(--card));
+    border-radius: 18px; box-shadow: var(--shadow); padding: 12px 8px 12px 14px; position: relative;
+  }
+  .pet-stage { flex: none; position: relative; }
+  .pet-avatar { position: relative; width: 66px; height: 62px; display: grid; place-items: center; cursor: pointer; }
+  .pet-emoji { font-size: 46px; line-height: 1; display: block; transform-origin: center bottom; }
+  .pet-hat { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); font-size: 25px; z-index: 2; pointer-events: none; }
+  .pet-zzz { position: absolute; top: -2px; right: -2px; font-size: 16px; animation: petzzz 2.4s ease-in-out infinite; }
+  .mood-happy .pet-emoji { animation: petbob 1.3s ease-in-out infinite; }
+  .mood-party .pet-emoji { animation: petdance .6s ease-in-out infinite; }
+  .mood-content .pet-emoji { animation: petsway 3s ease-in-out infinite; }
+  .mood-sleepy .pet-emoji { animation: petbreathe 3.6s ease-in-out infinite; filter: saturate(.75); }
+  .mood-celebrate .pet-emoji { animation: petjump .5s ease-in-out infinite; }
+  .pet-avatar.hop .pet-emoji { animation: petjump .45s ease; }
+  @keyframes petbob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes petdance { 0%,100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+  @keyframes petsway { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+  @keyframes petbreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  @keyframes petjump { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-13px); } }
+  @keyframes petzzz { 0% { opacity: .3; transform: translateY(2px); } 50% { opacity: 1; } 100% { opacity: .3; transform: translateY(-5px); } }
+  .pet-info { flex: 1; min-width: 0; }
+  .pet-name { font-family: var(--display); font-weight: 800; font-size: 15px; }
+  .pet-stagelabel { color: var(--muted); font-weight: 600; font-size: 13px; }
+  .pet-mood { font-size: 12px; color: var(--muted); margin: 1px 0 6px; }
+  .pet-next { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .pet-bubble {
+    position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, 4px);
+    background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 600;
+    padding: 7px 11px; border-radius: 12px; max-width: 58vw; text-align: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 5;
+  }
+  .pet-bubble.show { opacity: 1; transform: translate(-50%, -2px); }
+  .pet-styles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pet-style {
+    border: 1.5px solid var(--line); background: var(--card-2); border-radius: 12px;
+    padding: 8px 12px; min-height: 44px; font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pet-style[aria-pressed="true"] { border-color: var(--spruce); background: var(--spruce-soft); color: var(--spruce); }
+  .pet-style.locked { opacity: .45; }
+  .pet-style .lock-hint { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .day-chip {
+    font-family: var(--display); font-weight: 700; font-size: 13px;
+    width: 40px; min-height: 38px; border: 1.5px solid var(--line);
+    background: var(--card-2); border-radius: 10px;
+  }
+  .day-chip[aria-pressed="true"] { background: var(--spruce-soft); border-color: var(--spruce); color: var(--spruce); }
+  .task.notdue { opacity: .6; }
+  .sug-chip {
+    font-size: 13px; border: 1px dashed var(--line); background: transparent;
+    color: var(--muted); border-radius: 999px; padding: 7px 12px; min-height: 36px;
+  }
+  .install-hint {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted);
+    background: var(--spruce-soft); border-radius: 14px; padding: 10px 6px 10px 14px; line-height: 1.4;
+  }
+  .install-hint strong { color: var(--spruce); }
+  .install-hint .hint-x { flex: none; width: 36px; height: 36px; color: var(--muted); font-size: 14px; }
+  .calc { font-size: 14px; color: var(--muted); }
+  .calc strong { font-family: var(--display); color: var(--coin); font-variant-numeric: tabular-nums; }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .ghost-btn { color: var(--muted); font-weight: 600; padding: 9px 12px; min-height: 40px; }
+
+  ul.cards { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .task {
+    background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .check {
+    width: 44px; height: 44px; flex: none; border-radius: 50%;
+    border: 2px solid var(--line); display: grid; place-items: center;
+    font-size: 20px; color: transparent; transition: transform .12s ease;
+  }
+  .task.done .check {
+    background: linear-gradient(135deg, var(--spruce), var(--p1c));
+    border-color: transparent; color: var(--spruce-ink);
+    animation: pop .35s cubic-bezier(.22, 1.61, .36, 1);
+  }
+  @keyframes pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  .check:active { transform: scale(.9); }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-weight: 600; font-size: 15px; }
+  .task.done .task-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+  .task-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .pts-badge {
+    flex: none; font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums;
+    font-size: 13px; color: var(--coin); background: var(--coin-soft);
+    border-radius: 999px; padding: 4px 10px;
+  }
+  .more-btn { flex: none; width: 36px; height: 44px; color: var(--muted); font-size: 18px; }
+  .task-menu { display: flex; justify-content: flex-end; }
+  .danger-btn { color: var(--danger); font-weight: 600; font-size: 13px; padding: 8px 12px; min-height: 40px; }
+
+  .reward { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 14px; }
+  .reward-emoji { font-size: 24px; flex: none; width: 40px; text-align: center; }
+  .reward-body { flex: 1; min-width: 0; }
+  .reward-title { font-weight: 600; font-size: 15px; }
+  .reward-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .redeem-btn {
+    flex: none; font-family: var(--display); font-weight: 700; font-size: 14px;
+    background: var(--coin-soft); color: var(--coin); border-radius: 999px;
+    padding: 9px 14px; min-height: 40px; font-variant-numeric: tabular-nums;
+  }
+  .redeem-btn[disabled] { opacity: .5; cursor: default; }
+
+  .feed { list-style: none; display: flex; flex-direction: column; }
+  .feed li { display: flex; gap: 12px; align-items: baseline; padding: 10px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .feed li:last-child { border-bottom: 0; }
+  .feed .f-ico { flex: none; }
+  .feed .f-text { flex: 1; line-height: 1.4; }
+  .feed .f-text strong { font-weight: 650; }
+  .feed .f-time { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .feed .f-pts { font-family: var(--display); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--coin); }
+  .feed .f-pts.neg { color: var(--danger); }
+
+  .empty {
+    text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5;
+    background: var(--card-2); border: 1px dashed var(--line); border-radius: 16px; padding: 22px 18px;
+  }
+
+  .qr-wrap { display: grid; place-items: center; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .qr-wrap canvas { width: min(100%, 260px); height: auto; image-rendering: pixelated; }
+
+  nav.tabbar {
+    position: sticky; bottom: 0; display: flex;
+    background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 0 8px; font-size: 11px; font-weight: 600; color: var(--muted); min-height: 52px;
+  }
+  .tab .t-ico { font-size: 20px; line-height: 1; padding: 3px 14px; border-radius: 999px; }
+  .tab[aria-selected="true"] { color: var(--spruce); }
+  .tab[aria-selected="true"] .t-ico { background: var(--spruce-soft); }
+
+  .pdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .pdot.p1 { background: var(--p1c); }
+  .pdot.p2 { background: var(--p2c); }
+
+  .budget-rows { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .budget-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .budget-row .b-name { font-weight: 600; min-width: 64px; }
+  .budget-row .b-left { color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .budget-row .b-bar { flex: 1; height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; min-width: 40px; }
+  .budget-row .b-bar-fill { display: block; height: 100%; background: var(--spruce); border-radius: 999px; }
+
+  .duel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; }
+  .duel-player { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 16px; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+    color: #fff; font-family: var(--display); font-weight: 800; font-size: 19px;
+  }
+  .avatar.p1 { background: linear-gradient(145deg, var(--p1c), var(--p1c-2)); }
+  .avatar.p2 { background: linear-gradient(145deg, var(--p2c), var(--p2c-2)); }
+  .vs { font-family: var(--display); font-weight: 800; font-size: 13px; color: var(--muted); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; }
+  .bar-row { display: grid; grid-template-columns: 88px 1fr auto; align-items: center; gap: 10px; }
+  .bar-name { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { height: 28px; background: var(--card-2); border-radius: 8px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0%; border-radius: 0 4px 4px 0; transition: width .7s cubic-bezier(.22, 1, .36, 1); }
+  .bar-fill.p1 { background: linear-gradient(90deg, var(--p1c-2), var(--p1c)); }
+  .bar-fill.p2 { background: linear-gradient(90deg, var(--p2c-2), var(--p2c)); }
+  .bar-val { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; min-width: 58px; text-align: right; }
+  .duel-legend { display: flex; gap: 16px; align-items: center; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .duel-legend .pdot { margin-right: 5px; }
+  .cols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 160px; }
+  .col-group { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+  .col-pair { flex: 1; display: flex; gap: 2px; align-items: flex-end; justify-content: center; }
+  .col-track { width: 13px; height: 100%; display: flex; align-items: flex-end; }
+  .col-fill { width: 100%; height: 0%; border-radius: 4px 4px 0 0; transition: height .7s cubic-bezier(.22, 1, .36, 1); }
+  .col-fill.p1 { background: linear-gradient(180deg, var(--p1c), var(--p1c-2)); }
+  .col-fill.p2 { background: linear-gradient(180deg, var(--p2c), var(--p2c-2)); }
+  .col-lab { text-align: center; font-size: 11px; color: var(--muted); }
+  .stat-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-tile { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .st-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .st-val { font-family: var(--display); font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15,22,18,.45);
+    display: grid; place-items: end center; z-index: 40;
+  }
+  .sheet {
+    background: var(--card); width: 100%; max-width: 560px;
+    border-radius: 24px 24px 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 14px;
+    max-height: 85dvh; overflow-y: auto;
+  }
+  .sheet h2 { font-family: var(--display); font-size: 19px; font-weight: 800; }
+  .who-row { display: flex; gap: 8px; }
+  .who-pick {
+    flex: 1; border: 1.5px solid var(--line); background: var(--card-2);
+    border-radius: 12px; padding: 12px; font-weight: 600; min-height: 48px;
+  }
+  .who-pick[aria-pressed="true"] { border-color: var(--spruce); background: var(--spruce-soft); color: var(--spruce); }
+  .primary-btn {
+    background: var(--spruce); color: var(--spruce-ink);
+    font-family: var(--display); font-weight: 700; font-size: 16px;
+    border-radius: 14px; padding: 14px; min-height: 50px; width: 100%;
+  }
+  .primary-btn[disabled] { opacity: .45; }
+  .sub-btn { color: var(--spruce); font-weight: 600; padding: 10px; min-height: 44px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(8px);
+    background: var(--ink); color: var(--paper);
+    font-size: 14px; font-weight: 600; padding: 11px 18px; border-radius: 999px;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    max-width: min(90vw, 480px); text-align: center; z-index: 60;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    #confetti { display: none; }
+  }
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><span class="broom">🧹</span>Klarschiff</div>
+    <div class="top-right">
+      <span class="chip" id="weekChip"></span>
+      <button class="icon-btn" id="profileShortcut" aria-label="Zum Profil">⚙︎</button>
+    </div>
+  </header>
+  <div class="scoreboard" id="scoreboard"></div>
+  <main id="main"></main>
+  <nav class="tabbar" role="tablist">
+    <button class="tab" role="tab" data-tab="tasks" aria-selected="true"><span class="t-ico">✅</span>Aufgaben</button>
+    <button class="tab" role="tab" data-tab="rewards" aria-selected="false"><span class="t-ico">🎁</span>Belohnungen</button>
+    <button class="tab" role="tab" data-tab="duel" aria-selected="false"><span class="t-ico">⚔️</span>Duell</button>
+    <button class="tab" role="tab" data-tab="history" aria-selected="false"><span class="t-ico">📖</span>Verlauf</button>
+    <button class="tab" role="tab" data-tab="profile" aria-selected="false"><span class="t-ico">👤</span>Profil</button>
+  </nav>
+</div>
+
+<div id="toast" role="status"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------- Persistenz ---------- */
+const KLARSCHIFF_BUILD = "4d4dffd · 24.07.2026 13:17 UTC"; // wird beim Pages-Deploy ersetzt
+const LS_STATE = "klarschiff.state.v1";
+const LS_DEVICE = "klarschiff.device.v1";
+const now = () => Date.now();
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(now()) + Math.random().toString(36).slice(2));
+
+function freshState() {
+  return {
+    v: 1,
+    players: [
+      { id: "p1", name: "", updatedAt: 0 },
+      { id: "p2", name: "", updatedAt: 0 },
+    ],
+    tasks: [],        // {id,title,points,assignee,kind,days,week,createdAt,archived,updatedAt}
+    completions: [],  // {id,taskId,title,points,bonus,spot,crit,wheel,playerId,day,ts,deleted,updatedAt}
+    rewards: [],      // {id,title,cost,createdAt,archived,updatedAt}
+    redemptions: [],  // {id,rewardId,title,cost,playerId,ts,deleted,updatedAt}
+    skips: [],        // {id,taskId,playerId,day,ts,deleted,updatedAt} – „heute nicht geschafft“
+    pet: { name: "Fussel", style: "none", createdAt: now(), updatedAt: 0 }, // gemeinsames Haustier (updatedAt 0: Standard verliert gegen echte Änderung)
+  };
+}
+let state = load(LS_STATE) || freshState();
+state.skips = state.skips || []; // Migration älterer Stände
+state.pet = state.pet || { name: "Fussel", style: "none", createdAt: now(), updatedAt: 0 };
+let device = load(LS_DEVICE) || { me: null };
+
+function load(key) {
+  try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+}
+function save() {
+  localStorage.setItem(LS_STATE, JSON.stringify(state));
+  localStorage.setItem(LS_DEVICE, JSON.stringify(device));
+  syncSoon(); // bei aktivem Auto-Sync Änderungen zeitnah hochschieben
+}
+
+/* ---------- Zeit & Wochen ---------- */
+function isoWeek(d = new Date()) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((date - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+const dayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function fmtTime(ts) {
+  const d = new Date(ts), today = dayKey(), k = dayKey(d);
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (k === today) return `heute ${hm}`;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  if (k === dayKey(y)) return `gestern ${hm}`;
+  return `${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+/* ---------- Abgeleitete Daten ---------- */
+const WEEKLY_NEW_TASKS = +localStorage.getItem("klarschiff.weeklylimit") || 10;
+const alive = (arr) => arr.filter((x) => !x.deleted);
+const playerById = (id) => state.players.find((p) => p.id === id);
+const displayName = (id) => (playerById(id)?.name || (id === "p1" ? "Spieler 1" : "Spieler 2"));
+const otherOf = (id) => (id === "p1" ? "p2" : "p1");
+const bonusFor = (points) => Math.ceil(points / 2);
+
+function weekPoints(playerId) {
+  const w = isoWeek();
+  return alive(state.completions)
+    .filter((c) => c.playerId === playerId && isoWeek(new Date(c.ts)) === w)
+    .reduce((s, c) => s + c.points, 0);
+}
+function balance(playerId) {
+  const earned = alive(state.completions).filter((c) => c.playerId === playerId).reduce((s, c) => s + c.points, 0);
+  const spent = alive(state.redemptions).filter((r) => r.playerId === playerId).reduce((s, r) => s + r.cost, 0);
+  return earned - spent;
+}
+function streak(playerId) {
+  const days = new Set(alive(state.completions).filter((c) => c.playerId === playerId && !c.wheel).map((c) => c.day));
+  let n = 0, joker = 1; // 🃏 ein Aussetzer-Tag pro Serie wird verziehen
+  const d = new Date();
+  if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1); // heute noch offen zählt nicht als Bruch
+  for (;;) {
+    if (days.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+    else if (n > 0 && joker > 0) { joker--; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return n;
+}
+function maxStreak(playerId) {
+  const days = [...new Set(alive(state.completions).filter((c) => c.playerId === playerId && !c.wheel).map((c) => c.day))].sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of days) {
+    const d = new Date(k + "T12:00:00");
+    const p = new Date(d); p.setDate(p.getDate() - 1);
+    run = prev === dayKey(p) ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return best;
+}
+
+/* ---------- Level, Abzeichen, Tages-Rampenlicht, Glück ---------- */
+const LEVEL_TITLES = ["Chaos-Küken", "Krümel-Azubi", "Staub-Scout", "Aufräum-Talent", "Ordnungs-Fee", "Wisch-Wizard", "Klarschiff-Profi", "Ordnungs-Ninja", "Putz-Legende", "Haushalts-Hero", "Glanz-Gottheit", "Klarschiff-Kapitän:in"];
+function levelInfo(xp) {
+  let lvl = 1, need = 60, base = 0;
+  while (xp >= base + need && lvl < 99) { base += need; lvl++; need = Math.round(need * 1.35); }
+  return {
+    lvl,
+    title: LEVEL_TITLES[Math.min(lvl - 1, LEVEL_TITLES.length - 1)],
+    pct: Math.min(100, ((xp - base) / need) * 100),
+    next: base + need - xp,
+  };
+}
+
+const BADGES = [
+  ["first", "🥇", "Erster Streich", "Erste Aufgabe erledigt"],
+  ["ten", "🔟", "Zehnkämpfer:in", "10 Aufgaben erledigt"],
+  ["fifty", "🏵️", "Halbes Hundert", "50 Aufgaben erledigt"],
+  ["streak3", "🔥", "Warmgelaufen", "3-Tage-Serie geschafft"],
+  ["streak7", "🌋", "Eine ganze Woche!", "7-Tage-Serie geschafft"],
+  ["bonus5", "🏅", "Rettung in Not", "5× die Aufgabe des Partners übernommen"],
+  ["crit1", "💥", "Glückspilz", "Einen kritischen Treffer gelandet"],
+  ["week100", "💯", "Powerwoche", "100 Punkte in einer Woche"],
+  ["early", "🌅", "Frühputzer:in", "Vor 8 Uhr etwas erledigt"],
+  ["night", "🦉", "Nachteule", "Nach 22 Uhr noch etwas erledigt"],
+  ["shop", "🛍️", "Gönn dir", "Erste Belohnung eingelöst"],
+  ["blitz5", "⚡️", "Blitzmeister:in", "5× einen Blitz-Sprint durchgezogen"],
+];
+function badgeStats(pid) {
+  const mine = alive(state.completions).filter((c) => c.playerId === pid && !c.wheel);
+  const weeks = {};
+  let early = false, night = false;
+  for (const c of mine) {
+    const w = isoWeek(new Date(c.ts));
+    weeks[w] = (weeks[w] || 0) + c.points;
+    const h = new Date(c.ts).getHours();
+    if (h < 8) early = true;
+    if (h >= 22) night = true;
+  }
+  return {
+    count: mine.length,
+    bonuses: mine.filter((c) => c.bonus).length,
+    crits: mine.filter((c) => c.crit).length,
+    bestWeek: Math.max(0, ...Object.values(weeks)),
+    maxStreak: maxStreak(pid),
+    early, night,
+    blitzes: mine.filter((c) => c.blitz).length,
+    redeems: alive(state.redemptions).filter((r) => r.playerId === pid).length,
+  };
+}
+function hasBadge(id, S) {
+  switch (id) {
+    case "first": return S.count >= 1;
+    case "ten": return S.count >= 10;
+    case "fifty": return S.count >= 50;
+    case "streak3": return S.maxStreak >= 3;
+    case "streak7": return S.maxStreak >= 7;
+    case "bonus5": return S.bonuses >= 5;
+    case "crit1": return S.crits >= 1;
+    case "week100": return S.bestWeek >= 100;
+    case "early": return S.early;
+    case "night": return S.night;
+    case "shop": return S.redeems >= 1;
+    case "blitz5": return S.blitzes >= 5;
+    default: return false;
+  }
+}
+
+const TESTMODE = () => !!localStorage.getItem("klarschiff.testmode");
+function critChance() {
+  const luck = localStorage.getItem("klarschiff.luck");
+  if (luck !== null) return parseFloat(luck) || 0;
+  return TESTMODE() ? 0 : 0.12;
+}
+const SPOT_BONUS = 5;
+function spotlightTaskId() {
+  if (TESTMODE()) return null;
+  const due = state.tasks
+    .filter((t) => !t.archived && t.kind !== "once" && isDueToday(t))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  if (!due.length) return null;
+  let h = 0;
+  for (const ch of dayKey()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return due[h % due.length].id;
+}
+/* ---------- Samstags-Glücksrad (gewichtete Segmente) ---------- */
+// Landewahrscheinlichkeit = Bogenlänge: Niete ~17 %, 💰100 nur 3,3 %
+const WHEEL_SEGS = [
+  { v: 0, deg: 60, c: "#8B9890", label: "Niete" },
+  { v: 5, deg: 62, c: "#0FA38A" },
+  { v: 10, deg: 60, c: "#A855F7" },
+  { v: 15, deg: 50, c: "#1F6F54" },
+  { v: 20, deg: 45, c: "#E9B45C" },
+  { v: 25, deg: 40, c: "#0FA38A" },
+  { v: 50, deg: 31, c: "#A855F7" },
+  { v: 100, deg: 12, c: "#C2410C", label: "💰100" },
+];
+const isWheelDay = () => todayIdx() === 5 || !!localStorage.getItem("klarschiff.wheelday");
+const myWheelSpinToday = () =>
+  alive(state.completions).find((c) => c.wheel && c.playerId === device.me && c.day === dayKey());
+function daysUntilSaturday() {
+  return (5 - todayIdx() + 7) % 7 || 7;
+}
+function drawWheel(canvas) {
+  const size = 560, r = size / 2;
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext("2d");
+  let start = -90;
+  for (const s of WHEEL_SEGS) {
+    const a0 = (start * Math.PI) / 180, a1 = ((start + s.deg) * Math.PI) / 180;
+    g.beginPath(); g.moveTo(r, r); g.arc(r, r, r - 4, a0, a1); g.closePath();
+    g.fillStyle = s.c; g.fill();
+    g.strokeStyle = "rgba(255,255,255,.85)"; g.lineWidth = 3; g.stroke();
+    const mid = (a0 + a1) / 2;
+    g.save();
+    g.translate(r + Math.cos(mid) * r * 0.6, r + Math.sin(mid) * r * 0.6);
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+    if (s.deg < 22) { // schmaler Splitter: Text radial nach außen
+      g.rotate(mid);
+      g.font = "800 26px ui-rounded, -apple-system, sans-serif";
+    } else {
+      g.rotate(mid + Math.PI / 2);
+      g.font = `800 ${s.v === 0 ? 30 : 38}px ui-rounded, -apple-system, sans-serif`;
+    }
+    g.fillText(s.label || String(s.v), 0, 0);
+    g.restore();
+    start += s.deg;
+  }
+  g.beginPath(); g.arc(r, r, 34, 0, Math.PI * 2);
+  g.fillStyle = "#fff"; g.fill();
+  g.font = "34px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("🎡", r, r + 2);
+}
+let wheelSpinning = false;
+function spinWheel() {
+  if (wheelSpinning || !isWheelDay() || myWheelSpinToday()) return;
+  if (!device.me) return openSetup();
+  const canvas = $("#wheelCanvas");
+  const btn = $("#spinBtn");
+  if (!canvas) return;
+  wheelSpinning = true;
+  if (btn) btn.disabled = true;
+  // Segment flächengewichtet auslosen, dann mit Randabstand darin landen
+  const roll = Math.random() * 360;
+  let cum = 0, seg = WHEEL_SEGS[0], segStart = 0;
+  for (const s of WHEEL_SEGS) {
+    if (roll < cum + s.deg) { seg = s; segStart = cum; break; }
+    cum += s.deg;
+  }
+  const pad = Math.min(3, seg.deg / 4);
+  const angle = segStart + pad + Math.random() * (seg.deg - pad * 2);
+  const target = 6 * 360 + (360 - angle);
+  canvas.style.transition = "transform 4.2s cubic-bezier(.12,.68,.08,1)";
+  canvas.style.transform = `rotate(${target}deg)`;
+  canvas.addEventListener("transitionend", () => {
+    state.completions.push({
+      id: uid(), taskId: null, title: "Glücksrad", points: seg.v, bonus: 0, wheel: 1, wheelAngle: angle,
+      playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
+    });
+    wheelSpinning = false;
+    save(); render();
+    if (seg.v > 0) {
+      confetti(innerWidth / 2, innerHeight / 3, seg.v === 100 ? { glyphs: ["💰", "🎡", "✨", "🤑"], n: 44 } : { glyphs: ["🎡", "✨"], n: 30 });
+    }
+    toast(seg.v === 100 ? "💰 JACKPOT! 100 Punkte!!!"
+      : seg.v === 0 ? "Niete 😅 Nächsten Samstag neue Chance!"
+      : `🎡 ${seg.v} P gewonnen – Glückwunsch!`);
+  }, { once: true });
+}
+
+/* ---------- Starthilfe: Aufgaben-Roulette & Blitz-Sprint ---------- */
+const BLITZ_BONUS = 3, BLITZ_DAILY_CAP = 3;
+function openTasksToday() {
+  return state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id));
+}
+function blitzUsedToday() {
+  return alive(state.completions).filter((c) => c.playerId === device.me && c.day === dayKey() && c.blitz).length;
+}
+const ROOMS = ["Küche", "Bad", "Wohnzimmer", "Schlafzimmer", "Flur", "Draußen"];
+const ROOM_EMOJI = { "Küche": "🍳", "Bad": "🛁", "Wohnzimmer": "🛋️", "Schlafzimmer": "🛏️", "Flur": "🚪", "Draußen": "🌳" };
+const durLabelOf = (t) => { const [, dur] = diffDurOf(t); return dur === 1 ? "unter 2 Min" : dur === 1.5 ? "2–10 Min" : "länger"; };
+const diffEmojiOf = (t) => { const [diff] = diffDurOf(t); return diff === 5 ? "😌" : diff === 15 ? "🤬" : "😤"; };
+function taskLastDoneTs(taskId) {
+  const cs = alive(state.completions).filter((c) => c.taskId === taskId);
+  return cs.length ? cs.reduce((a, b) => (a.ts > b.ts ? a : b)).ts : null;
+}
+function isOverdue(t) {
+  const last = taskLastDoneTs(t.id);
+  return last == null || (now() - last) >= 3 * 86400000; // nie erledigt oder 3+ Tage her
+}
+const ROULETTE_FILTERS = [
+  { id: "any", label: "🎲 Zufällig", pick: (c) => c },
+  { id: "quick", label: "⚡ Schnell (≤ ~5 Min)", pick: (c) => c.filter((t) => diffDurOf(t)[1] <= 1.5) },
+  { id: "hi", label: "💪 Viel Energie", pick: (c) => c.filter((t) => { const [d, u] = diffDurOf(t); return u === 2 || d === 15; }) },
+  { id: "lo", label: "😴 Wenig Energie", pick: (c) => c.filter((t) => { const [d, u] = diffDurOf(t); return u === 1 && d <= 10; }) },
+  { id: "points", label: "🔥 Viele Punkte", pick: (c) => { if (!c.length) return c; const mx = Math.max(...c.map((t) => t.points)); return c.filter((t) => t.points >= mx * 0.7); } },
+  { id: "overdue", label: "⏰ Überfällig", pick: (c) => c.filter(isOverdue) },
+];
+function roulettePool(filterId) {
+  const base = openTasksToday();
+  if (filterId.startsWith("room:")) return base.filter((t) => t.room === filterId.slice(5));
+  const f = ROULETTE_FILTERS.find((x) => x.id === filterId);
+  return f ? f.pick(base) : base;
+}
+
+function openRoulette() {
+  if (!openTasksToday().length) return toast("Alles erledigt – nichts zu würfeln 🎉");
+  if (document.querySelector(".overlay")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  document.body.appendChild(overlay);
+
+  const showFilters = () => {
+    const usedRooms = [...new Set(openTasksToday().map((t) => t.room).filter(Boolean))];
+    const roomBtns = usedRooms.map((r) => `<button type="button" class="pt-chip" data-filter="room:${esc(r)}">${ROOM_EMOJI[r] || "🏠"} ${esc(r)}</button>`).join("");
+    overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+      <h2>🎲 Was zuerst?</h2>
+      <p class="hint">Worauf hast du gerade Lust? Ich such dir was Passendes aus.</p>
+      <div class="point-row" id="rouFilters">
+        ${ROULETTE_FILTERS.map((f) => `<button type="button" class="pt-chip" data-filter="${f.id}">${f.label}</button>`).join("")}
+        ${roomBtns}
+      </div>
+      <button class="sub-btn" id="rouCancel">Abbrechen</button>
+    </div>`;
+  };
+
+  const REROLL_MAX = 3;
+  const showSpin = (filterId) => {
+    const pool = roulettePool(filterId);
+    if (!pool.length) {
+      overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+        <h2>Nichts gefunden 🤔</h2>
+        <p class="hint">Für diese Auswahl ist heute nichts (mehr) offen. Probier einen anderen Filter.</p>
+        <button class="primary-btn" id="rouBack">Zurück zur Auswahl</button>
+      </div>`;
+      return;
+    }
+    let rerolls = 0, pick = null;
+    overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+      <h2>🎯 Deine Mission</h2>
+      <div class="rou-title" id="rouTitle">…</div>
+      <div id="rouMeta" class="calc" style="text-align:center" hidden></div>
+      <div id="rouActions" hidden>
+        <button class="primary-btn" id="rouGo" style="margin-bottom:8px">Los geht's! 💪</button>
+        <button class="sub-btn" id="rouBlitz">⏱ Blitz-Sprint damit starten</button>
+        <button class="sub-btn" id="rouAgain"></button>
+      </div>
+    </div>`;
+    const spin = () => {
+      overlay.querySelector("#rouActions").hidden = true;
+      overlay.querySelector("#rouMeta").hidden = true;
+      let i = 0, delay = 60;
+      const step = () => {
+        const el = overlay.querySelector("#rouTitle");
+        if (!el) return;
+        pick = pool[Math.floor(Math.random() * pool.length)];
+        el.textContent = pick.title;
+        if (++i < 12) { delay = Math.round(delay * 1.18); setTimeout(step, delay); }
+        else {
+          el.textContent = `${spotlightTaskId() === pick.id ? "✨ " : ""}${pick.title}`;
+          const meta = overlay.querySelector("#rouMeta");
+          const bonus = pick.assignee && pick.assignee !== device.me ? ` · +${bonusFor(pick.points)} Bonus 🏅` : "";
+          meta.innerHTML = `${durLabelOf(pick)} • ${diffEmojiOf(pick)} • <strong>${pick.points} P</strong>${bonus}`;
+          meta.hidden = false;
+          const again = overlay.querySelector("#rouAgain");
+          again.textContent = rerolls < REROLL_MAX ? `🎲 Neu würfeln (noch ${REROLL_MAX - rerolls})` : "Filter wechseln";
+          overlay.querySelector("#rouActions").hidden = false;
+        }
+      };
+      step();
+    };
+    overlay._spin = spin; overlay._reroll = () => { rerolls++; };
+    overlay._getPick = () => pick;
+    overlay._canReroll = () => rerolls < REROLL_MAX;
+    spin();
+  };
+
+  overlay.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-filter]");
+    if (f) return showSpin(f.dataset.filter);
+    if (e.target.id === "rouBack") return showFilters();
+    if (e.target.id === "rouCancel" || e.target === overlay) return overlay.remove();
+    if (e.target.id === "rouAgain") { if (overlay._canReroll()) { overlay._reroll(); overlay._spin(); } else { showFilters(); } return; }
+    if (e.target.id === "rouBlitz") { const p = overlay._getPick(); overlay.remove(); return openBlitz(p && p.id); }
+    if (e.target.id === "rouGo") { const p = overlay._getPick(); overlay.remove(); return toast(`Los geht's: „${p.title}“ 💪`); }
+  });
+
+  showFilters();
+}
+
+let blitzTimer = null;
+function openBlitz(taskId = null) {
+  if (document.querySelector(".overlay")) return;
+  const task = taskId ? state.tasks.find((t) => t.id === taskId) : null;
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  const left = BLITZ_DAILY_CAP - blitzUsedToday();
+  overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+    <h2>⏱ Blitz-Sprint</h2>
+    <p class="hint">${task ? `Nur du, der Timer und „${esc(task.title)}“.` : "Nur du und der Timer."} Nicht perfekt – einfach anfangen. ${left > 0 ? `Durchgehalten = +${BLITZ_BONUS} P Blitz-Bonus ⚡️ beim Abhaken (noch ${left}× heute).` : "Der Blitz-Bonus ist für heute abgeholt – zählt trotzdem!"}</p>
+    <div class="point-row" id="blitzDur" style="justify-content:center">
+      <button type="button" class="pt-chip" data-min="2" aria-pressed="false">2 Min</button>
+      <button type="button" class="pt-chip" data-min="5" aria-pressed="true">5 Min</button>
+      <button type="button" class="pt-chip" data-min="10" aria-pressed="false">10 Min</button>
+    </div>
+    <button class="primary-btn" id="blitzStart">Start ⚡️</button>
+    <button class="sub-btn" id="blitzCancel">Abbrechen</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => {
+    const chip = e.target.closest("#blitzDur .pt-chip");
+    if (chip) {
+      overlay.querySelectorAll("#blitzDur .pt-chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+      chip.setAttribute("aria-pressed", "true");
+      return;
+    }
+    if (e.target.id === "blitzCancel" || e.target === overlay) { clearInterval(blitzTimer); overlay.remove(); return; }
+    if (e.target.id === "blitzStart") {
+      const min = +overlay.querySelector('#blitzDur .pt-chip[aria-pressed="true"]').dataset.min;
+      const secs = +localStorage.getItem("klarschiff.blitzsec") || min * 60;
+      runBlitz(overlay, task, secs);
+    }
+  });
+}
+function runBlitz(overlay, task, totalSecs) {
+  const endTs = now() + totalSecs * 1000;
+  overlay.querySelector(".sheet").innerHTML = `
+    <h2>⏱ Blitz läuft …</h2>
+    ${task ? `<p class="hint" style="text-align:center">„${esc(task.title)}“ – einfach anfangen!</p>` : ""}
+    <div class="blitz-ring" id="blitzRing"><div class="blitz-inner"><span id="blitzTime"></span></div></div>
+    <button class="sub-btn" id="blitzStop">Abbrechen</button>`;
+  overlay.querySelector("#blitzStop").addEventListener("click", () => { clearInterval(blitzTimer); overlay.remove(); });
+  const tick = () => {
+    const ring = overlay.querySelector("#blitzRing"), time = overlay.querySelector("#blitzTime");
+    if (!ring) return clearInterval(blitzTimer);
+    const leftMs = Math.max(0, endTs - now()); // endTs-basiert: übersteht iOS-Timer-Pausen
+    ring.style.background = `conic-gradient(var(--coin) ${100 - (leftMs / (totalSecs * 1000)) * 100}%, var(--card-2) 0)`;
+    const s = Math.ceil(leftMs / 1000);
+    time.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    if (leftMs <= 0) { clearInterval(blitzTimer); finishBlitz(overlay, task); }
+  };
+  clearInterval(blitzTimer);
+  blitzTimer = setInterval(tick, 400);
+  tick();
+}
+function finishBlitz(overlay, task) {
+  confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["⚡️", "✨", "💪"], n: 34 });
+  const bonus = blitzUsedToday() < BLITZ_DAILY_CAP ? BLITZ_BONUS : 0;
+  const open = task && !task.archived && !todaysCompletion(task.id);
+  overlay.querySelector(".sheet").innerHTML = `
+    <h2>⚡️ Blitz geschafft!</h2>
+    <p class="hint">${open ? "Stark durchgezogen! Direkt abhaken?" : "Stark durchgezogen! Hak ab, was du geschafft hast – jeder Anfang zählt."}</p>
+    ${open ? `<button class="primary-btn" id="blitzDone">„${esc(task.title)}“ abhaken${bonus ? ` (+${bonus} P Blitz-Bonus ⚡️)` : ""}</button>` : ""}
+    <button class="sub-btn" id="blitzClose">Fertig</button>`;
+  overlay.querySelector("#blitzClose").addEventListener("click", () => overlay.remove());
+  const doneBtn = overlay.querySelector("#blitzDone");
+  if (doneBtn) doneBtn.addEventListener("click", () => {
+    overlay.remove();
+    performComplete(task, innerWidth / 2, innerHeight / 3, bonus);
+  });
+}
+
+function allDoneToday() {
+  const open = state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id));
+  const due = state.tasks.filter((t) => !t.archived && t.kind !== "once" && isDueToday(t));
+  return due.length > 0 && open.length === 0;
+}
+
+/* ---------- Haushalts-Haustier (gemeinsam) ---------- */
+const PET_STAGES = [
+  { min: 0, emoji: "🥚", name: "Ei" },
+  { min: 3, emoji: "🐣", name: "Baby" },
+  { min: 10, emoji: "🐥", name: "Küken" },
+  { min: 25, emoji: "🐤", name: "Jungvogel" },
+  { min: 60, emoji: "🐔", name: "Erwachsen" },
+  { min: 120, emoji: "🦚", name: "Legendär" },
+];
+function teamDoneCount() {
+  return alive(state.completions).filter((c) => !c.wheel).length;
+}
+function petStage() {
+  const n = teamDoneCount();
+  let i = 0;
+  for (let k = 0; k < PET_STAGES.length; k++) if (n >= PET_STAGES[k].min) i = k;
+  const cur = PET_STAGES[i], next = PET_STAGES[i + 1] || null;
+  return {
+    i, emoji: cur.emoji, name: cur.name, count: n, next,
+    toNext: next ? next.min - n : 0,
+    pct: next ? ((n - cur.min) / (next.min - cur.min)) * 100 : 100,
+  };
+}
+let petReactUntil = 0, petBubbleT = null;
+function petMood() {
+  if (now() < petReactUntil) return "celebrate";
+  const today = alive(state.completions).filter((c) => !c.wheel && c.day === dayKey()).length;
+  if (today >= 3) return "party";
+  if (today >= 1) return "happy";
+  const days = alive(state.completions).filter((c) => !c.wheel).map((c) => c.day);
+  if (!days.length) return "content";
+  const recent = days.reduce((a, b) => (a > b ? a : b));
+  const diff = Math.round((new Date(dayKey() + "T12:00") - new Date(recent + "T12:00")) / 86400000);
+  return diff >= 2 ? "sleepy" : "content";
+}
+const PET_MOOD_LINE = {
+  party: "tanzt vor Freude! 🎉", happy: "freut sich – weiter so! 😊",
+  content: "wartet gespannt auf euch", sleepy: "döst gelangweilt vor sich hin 😴",
+  celebrate: "jubelt! 🎉",
+};
+const PET_PHRASES = {
+  party: ["Wow, was für ein Tag! 🎉", "Ihr seid heute unaufhaltsam!", "Ich tanz vor Freude!"],
+  happy: ["Weiter so! 💪", "Das fühlt sich gut an!", "Noch was? Ich bin dabei!"],
+  content: ["Bereit, wenn ihr's seid.", "Was machen wir als Nächstes?", "Ich glaub an euch!", "Eine kleine Aufgabe geht immer 😊"],
+  sleepy: ["*gähn* … eine Aufgabe weckt mich 😴", "Mir ist langweilig … räumen wir was weg?", "Zzz… der Müll wartet schon.", "Ich vermisse das Konfetti …"],
+  celebrate: ["Yesss! Geschafft! 🎉", "Du bist super!", "Noch eine? Los!"],
+};
+const PET_STYLES = [
+  { id: "none", emoji: "", name: "Natur pur", need: () => true, hint: "" },
+  { id: "cap", emoji: "🧢", name: "Cap", need: () => teamDoneCount() >= 10, hint: "10 Aufgaben" },
+  { id: "grad", emoji: "🎓", name: "Schlaumütze", need: () => teamDoneCount() >= 25, hint: "25 Aufgaben" },
+  { id: "shades", emoji: "🕶️", name: "Sonnenbrille", need: () => Math.max(maxStreak("p1"), maxStreak("p2")) >= 7, hint: "7-Tage-Serie" },
+  { id: "crown", emoji: "👑", name: "Krone", need: () => teamDoneCount() >= 60, hint: "60 Aufgaben" },
+  { id: "top", emoji: "🎩", name: "Zylinder", need: () => teamDoneCount() >= 120, hint: "120 Aufgaben" },
+];
+function petStyleEmoji() {
+  const s = PET_STYLES.find((x) => x.id === (state.pet && state.pet.style));
+  return s && s.need() ? s.emoji : "";
+}
+// Wochen-Kontingent pro Person: „Beide“-Aufgaben zählen bei beiden,
+// Einmal-Aufgaben zählen gar nicht (das Limit schützt vor zu vielen neuen Gewohnheiten)
+function laneCounts() {
+  const w = isoWeek();
+  const c = { p1: 0, p2: 0 };
+  for (const t of state.tasks) {
+    if (t.week !== w || t.kind === "once" || t.archived) continue; // gelöschte geben ihren Slot wieder frei
+    if (t.assignee) c[t.assignee]++;
+    else { c.p1++; c.p2++; }
+  }
+  return c;
+}
+
+const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const todayIdx = () => (new Date().getDay() + 6) % 7;
+function isDueToday(t) {
+  const ds = t.days;
+  if (!ds || !ds.length || ds.length === 7) return true;
+  return ds.includes(todayIdx());
+}
+function daysLabel(t) {
+  return !t.days || !t.days.length || t.days.length === 7 ? "täglich" : t.days.map((i) => DAY_NAMES[i]).join("·");
+}
+function nextDueName(t) {
+  for (let i = 1; i <= 7; i++) {
+    const d = (todayIdx() + i) % 7;
+    if (t.days.includes(d)) return DAY_NAMES[d];
+  }
+  return "";
+}
+function earnedTotal(playerId) {
+  return alive(state.completions).filter((c) => c.playerId === playerId).reduce((s, c) => s + c.points, 0);
+}
+function pointsOnDay(playerId, key) {
+  return alive(state.completions).filter((c) => c.playerId === playerId && c.day === key).reduce((s, c) => s + c.points, 0);
+}
+function todaysCompletion(taskId) {
+  const day = dayKey();
+  return alive(state.completions).find((c) => c.taskId === taskId && c.day === day);
+}
+function skipOf(taskId, playerId) {
+  const day = dayKey();
+  return alive(state.skips).find((s) => s.taskId === taskId && s.playerId === playerId && s.day === day);
+}
+
+/* ---------- Merge (Sync) ---------- */
+function mergeById(mine, theirs) {
+  const map = new Map(mine.map((x) => [x.id, x]));
+  for (const t of theirs) {
+    const m = map.get(t.id);
+    if (!m || (t.updatedAt || 0) > (m.updatedAt || 0)) map.set(t.id, t);
+  }
+  return [...map.values()];
+}
+function mergeState(incoming) {
+  if (!incoming || incoming.v !== 1) throw new Error("bad state");
+  state.players = state.players.map((p) => {
+    const t = (incoming.players || []).find((x) => x.id === p.id);
+    return t && (t.updatedAt || 0) > (p.updatedAt || 0) ? t : p;
+  });
+  for (const key of ["tasks", "completions", "rewards", "redemptions", "skips"]) {
+    state[key] = mergeById(state[key] || [], incoming[key] || []);
+  }
+  // Sync-Raum: beide Geräte einigen sich deterministisch auf den ältesten
+  if (incoming.room && (!state.room || incoming.room.createdAt < state.room.createdAt)) {
+    state.room = incoming.room;
+  }
+  // Haustier: Name/Style nach updatedAt (neuer gewinnt), Geburtsdatum = ältestes
+  if (incoming.pet) {
+    if (!state.pet) state.pet = incoming.pet;
+    else {
+      const born = Math.min(state.pet.createdAt || now(), incoming.pet.createdAt || now());
+      if ((incoming.pet.updatedAt || 0) > (state.pet.updatedAt || 0)) state.pet = { ...incoming.pet };
+      state.pet.createdAt = born;
+    }
+  }
+  save();
+}
+
+/* ---------- Sync-Kodierung (Link & QR) ---------- */
+const b64url = {
+  enc: (bytes) => {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  },
+  dec: (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)),
+};
+async function encodeSync() {
+  const bytes = new TextEncoder().encode(JSON.stringify(state));
+  if (typeof CompressionStream !== "undefined") {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+    const gz = new Uint8Array(await new Response(stream).arrayBuffer());
+    return "g." + b64url.enc(gz);
+  }
+  return "r." + b64url.enc(bytes);
+}
+async function decodeSync(payload) {
+  const [kind, data] = [payload.slice(0, 2), payload.slice(2)];
+  let bytes = b64url.dec(data);
+  if (kind === "g.") {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function buildSyncUrl() {
+  // Vor dem Teilen sicherstellen, dass ein gemeinsamer Raum existiert (dann reist er im QR/Code mit)
+  if (!state.room && device.me && syncStatus.supported !== false && syncCapableHost()) await enableAutoSync(true);
+  return location.origin + location.pathname + location.search + "#sync=" + (await encodeSync());
+}
+
+/* ---------- Automatischer Sync über einen gemeinsamen JSON-Raum ----------
+   Funktioniert überall dort, wo die Seite externe Server erreichen darf
+   (z. B. eigenes Hosting). Auf Hosting mit strikter CSP (z. B. Claude-
+   Artifact-Seiten) schlägt fetch fehl – die App erklärt das dann ehrlich. */
+const SYNC_CREATE_URL = localStorage.getItem("klarschiff.syncbase") || "https://jsonblob.com/api/jsonBlob";
+const SYNC_INTERVAL = +localStorage.getItem("klarschiff.syncinterval") || 12000;
+let lastSyncedJson = "", syncTickRunning = false, syncSoonTimer = null;
+const syncStatus = { supported: null, lastOkAt: 0 };
+
+async function autoSyncTick() {
+  if (!state.room || syncTickRunning) return;
+  syncTickRunning = true;
+  try {
+    const before = JSON.stringify(state);
+    const res = await fetch(state.room.url, { cache: "no-store" });
+    if (res.ok) {
+      try { mergeState(await res.json()); } catch { /* fremder Inhalt – ignorieren */ }
+    }
+    const json = JSON.stringify(state);
+    if (json !== lastSyncedJson) {
+      const put = await fetch(state.room.url, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: json,
+      });
+      if (put.ok) lastSyncedJson = json;
+    }
+    syncStatus.supported = true;
+    syncStatus.lastOkAt = now();
+    if (json !== before) {
+      const a = document.activeElement;
+      const typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && a.value;
+      if (!typing && !wheelSpinning && !document.querySelector(".overlay")) render();
+      notifyPartnerNews();
+    } else if (tab === "profile") {
+      const el = $("#autoSyncStatus");
+      if (el) el.textContent = autoSyncStatusText();
+    }
+  } catch {
+    if (syncStatus.supported === null) syncStatus.supported = false;
+  } finally {
+    syncTickRunning = false;
+  }
+}
+function syncSoon() {
+  if (!state.room) return;
+  clearTimeout(syncSoonTimer);
+  syncSoonTimer = setTimeout(autoSyncTick, 1500);
+}
+async function enableAutoSync(silent) {
+  try {
+    const res = await fetch(SYNC_CREATE_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state),
+    });
+    if (!res.ok) throw new Error("create failed");
+    const loc = res.headers.get("Location");
+    if (!loc) throw new Error("no location");
+    state.room = { url: new URL(loc, SYNC_CREATE_URL).href, createdAt: now() };
+    syncStatus.supported = true;
+    save();
+    autoSyncTick();
+    if (silent) { if (tab === "profile") render(); }
+    else { render(); toast("Automatischer Sync ist an ✨ Einmal QR/Code teilen – dann läuft's von allein"); }
+    return true;
+  } catch {
+    syncStatus.supported = false;
+    if (!silent) { render(); toast("Klappt auf dieser Seite leider nicht – Details stehen im Profil"); }
+    return false;
+  }
+}
+const syncCapableHost = () => /^https?:$/.test(location.protocol); // nur auf echtem Hosting, nicht file://
+// Auto-Start: auf tauglichem Hosting den Raum selbst anlegen, ohne dass jemand „einschalten“ muss
+async function maybeAutoEnableSync() {
+  if (state.room || !device.me || syncStatus.supported === false || !syncCapableHost()) return;
+  await enableAutoSync(true);
+}
+/* ---------- Benachrichtigungen bei Partner-Aktivität ---------- */
+function partnerNews() {
+  if (!device.me) return [];
+  const cutoff = device.notifiedUpTo || 0;
+  return [
+    ...alive(state.completions)
+      .filter((c) => c.playerId !== device.me && c.ts > cutoff)
+      .map((c) => ({
+        ts: c.ts,
+        text: c.wheel
+          ? (c.points > 0 ? `${displayName(c.playerId)} hat am Glücksrad ${c.points} P gewonnen 🎡` : `${displayName(c.playerId)} hat am Glücksrad eine Niete gedreht 🎡😅`)
+          : `${displayName(c.playerId)} hat „${c.title}“ erledigt (+${c.points} P) 🎉`,
+      })),
+    ...alive(state.redemptions)
+      .filter((r) => r.playerId !== device.me && r.ts > cutoff)
+      .map((r) => ({ ts: r.ts, text: `${displayName(r.playerId)} hat sich „${r.title}“ gegönnt (−${r.cost} P) 🎁` })),
+  ].sort((a, b) => a.ts - b.ts);
+}
+async function notifyPartnerNews() {
+  const news = partnerNews();
+  if (!news.length) return;
+  device.notifiedUpTo = news[news.length - 1].ts;
+  save();
+  toast(news[news.length - 1].text);
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    for (const n of news.slice(-3)) {
+      try {
+        const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+        if (reg && reg.showNotification) reg.showNotification("Klarschiff 🧹", { body: n.text, tag: "klarschiff-" + n.ts });
+        else new Notification("Klarschiff 🧹", { body: n.text, tag: "klarschiff-" + n.ts });
+      } catch { break; }
+    }
+  }
+}
+async function askNotifications() {
+  try {
+    const p = await Notification.requestPermission();
+    render();
+    toast(p === "granted" ? "Benachrichtigungen sind an 🔔" : "Keine Erlaubnis erteilt");
+  } catch {
+    toast("Ging nicht – ist die App vom Home-Bildschirm aus geöffnet?");
+  }
+}
+
+function autoSyncStatusText() {
+  if (!syncStatus.lastOkAt) return "Verbinde …";
+  const s = Math.max(0, Math.round((now() - syncStatus.lastOkAt) / 1000));
+  if (s > 90) return "Gerade nicht erreichbar – lokal ist alles gespeichert, es wird weiter versucht.";
+  return `Aktiv – zuletzt abgeglichen vor ${s} s.`;
+}
+
+/* ---------- QR-Code (Byte-Modus, EC-Level L, Version 1–25) ---------- */
+const QR = (() => {
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  for (let i = 0, x = 1; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const gmul = (a, b) => (a && b ? EXP[LOG[a] + LOG[b]] : 0);
+
+  // Blockgruppen [Anzahl, Gesamt-Codewörter, Daten-Codewörter] je Version, EC-Level L
+  const RS = [
+    [[1,26,19]], [[1,44,34]], [[1,70,55]], [[1,100,80]], [[1,134,108]],
+    [[2,86,68]], [[2,98,78]], [[2,121,97]], [[2,146,116]],
+    [[2,86,68],[2,87,69]], [[4,101,81]], [[2,116,92],[2,117,93]], [[4,133,107]],
+    [[3,145,115],[1,146,116]], [[5,109,87],[1,110,88]], [[5,122,98],[1,123,99]],
+    [[1,135,107],[5,136,108]], [[5,150,120],[1,151,121]], [[3,141,113],[4,142,114]],
+    [[3,135,107],[5,136,108]], [[4,144,116],[4,145,117]], [[2,139,111],[7,140,112]],
+    [[4,151,121],[5,152,122]], [[6,147,117],[4,148,118]], [[8,132,106],[4,133,107]],
+  ];
+  const ALIGN = [
+    [], [6,18], [6,22], [6,26], [6,30], [6,34],
+    [6,22,38], [6,24,42], [6,26,46], [6,28,50], [6,30,54], [6,32,58], [6,34,62],
+    [6,26,46,66], [6,26,48,70], [6,26,50,74], [6,30,54,78], [6,30,56,82], [6,30,58,86],
+    [6,34,62,90], [6,28,50,72,94], [6,26,50,74,98], [6,30,54,78,102], [6,28,54,80,106], [6,32,58,84,110],
+  ];
+
+  const bitLen = (n) => { let l = 0; while (n) { l++; n >>>= 1; } return l; };
+  function bch(data, poly, shift) {
+    let d = data << shift;
+    while (bitLen(d) >= bitLen(poly)) d ^= poly << (bitLen(d) - bitLen(poly));
+    return (data << shift) | d;
+  }
+  function rsDivisor(degree) {
+    const res = new Array(degree).fill(0); res[degree - 1] = 1;
+    let root = 1;
+    for (let i = 0; i < degree; i++) {
+      for (let j = 0; j < degree; j++) {
+        res[j] = gmul(res[j], root);
+        if (j + 1 < degree) res[j] ^= res[j + 1];
+      }
+      root = gmul(root, 2);
+    }
+    return res;
+  }
+  function rsRemainder(data, divisor) {
+    const res = new Array(divisor.length).fill(0);
+    for (const b of data) {
+      const f = b ^ res.shift();
+      res.push(0);
+      divisor.forEach((c, i) => { res[i] ^= gmul(c, f); });
+    }
+    return res;
+  }
+
+  function encode(text) {
+    const bytes = new TextEncoder().encode(text);
+    let version = 0, dataCap = 0;
+    for (let v = 1; v <= 25; v++) {
+      const cap = RS[v - 1].reduce((s, [n, , d]) => s + n * d, 0);
+      if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= cap * 8) { version = v; dataCap = cap; break; }
+    }
+    if (!version) return null; // zu groß für Version 25
+
+    const buf = []; let acc = 0, accLen = 0, bitCount = 0;
+    const put = (val, len) => {
+      for (let i = len - 1; i >= 0; i--) {
+        acc = (acc << 1) | ((val >>> i) & 1);
+        bitCount++;
+        if (++accLen === 8) { buf.push(acc); acc = 0; accLen = 0; }
+      }
+    };
+    put(0b0100, 4);
+    put(bytes.length, version < 10 ? 8 : 16);
+    for (const b of bytes) put(b, 8);
+    put(0, Math.min(4, dataCap * 8 - bitCount));      // Terminator
+    if (accLen > 0) put(0, 8 - accLen);               // auf Byte auffüllen
+    for (let alt = 0; buf.length < dataCap; alt ^= 1) buf.push(alt ? 0x11 : 0xEC);
+
+    // In Blöcke teilen, Fehlerkorrektur rechnen, verschachteln
+    const blocks = [];
+    let offset = 0;
+    for (const [count, total, dataLen] of RS[version - 1]) {
+      for (let i = 0; i < count; i++) {
+        const data = buf.slice(offset, offset + dataLen);
+        offset += dataLen;
+        blocks.push({ data, ec: rsRemainder(data, rsDivisor(total - dataLen)) });
+      }
+    }
+    const out = [];
+    const maxData = Math.max(...blocks.map((b) => b.data.length));
+    for (let i = 0; i < maxData; i++) for (const b of blocks) if (i < b.data.length) out.push(b.data[i]);
+    const maxEc = Math.max(...blocks.map((b) => b.ec.length));
+    for (let i = 0; i < maxEc; i++) for (const b of blocks) if (i < b.ec.length) out.push(b.ec[i]);
+
+    // Matrix aufbauen
+    const size = 17 + 4 * version;
+    const M = Array.from({ length: size }, () => new Array(size).fill(null));
+    const finder = (row, col) => {
+      for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) {
+        const y = row + r, x = col + c;
+        if (y < 0 || y >= size || x < 0 || x >= size) continue;
+        const dark = (r >= 0 && r <= 6 && (c === 0 || c === 6)) ||
+                     (c >= 0 && c <= 6 && (r === 0 || r === 6)) ||
+                     (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+        M[y][x] = dark ? 1 : 0;
+      }
+    };
+    finder(0, 0); finder(size - 7, 0); finder(0, size - 7);
+    // Alignment VOR Timing: ab Version 7 liegen Muster auf den Timing-Linien
+    // und dürfen nur bei Überlappung mit einem Finder entfallen
+    const pos = ALIGN[version - 1];
+    for (const r of pos) for (const c of pos) {
+      if (M[r][c] !== null) continue;
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++)
+        M[r + dr][c + dc] = Math.max(Math.abs(dr), Math.abs(dc)) !== 1 ? 1 : 0;
+    }
+    for (let i = 8; i < size - 8; i++) {
+      if (M[i][6] === null) M[i][6] = i % 2 === 0 ? 1 : 0;
+      if (M[6][i] === null) M[6][i] = i % 2 === 0 ? 1 : 0;
+    }
+    // Formatinfo: EC-Level L (01), Maske 0
+    const fmt = bch((0b01 << 3) | 0, 0b10100110111, 10) ^ 0b101010000010010;
+    for (let i = 0; i < 15; i++) {
+      const m = (fmt >> i) & 1;
+      if (i < 6) M[i][8] = m; else if (i < 8) M[i + 1][8] = m; else M[size - 15 + i][8] = m;
+      if (i < 8) M[8][size - 1 - i] = m; else if (i < 9) M[8][15 - i] = m; else M[8][15 - i - 1] = m;
+    }
+    M[size - 8][8] = 1;
+    if (version >= 7) {
+      const vi = bch(version, 0b1111100100101, 12);
+      for (let i = 0; i < 18; i++) {
+        const m = (vi >> i) & 1;
+        M[Math.floor(i / 3)][(i % 3) + size - 11] = m;
+        M[(i % 3) + size - 11][Math.floor(i / 3)] = m;
+      }
+    }
+    // Datenbits im Zickzack platzieren, Maske 0: (Zeile+Spalte) gerade
+    let inc = -1, row = size - 1, bitIndex = 7, byteIndex = 0;
+    for (let col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col--;
+      for (;;) {
+        for (let c = 0; c < 2; c++) {
+          if (M[row][col - c] === null) {
+            let dark = byteIndex < out.length && ((out[byteIndex] >>> bitIndex) & 1) === 1;
+            if ((row + (col - c)) % 2 === 0) dark = !dark;
+            M[row][col - c] = dark ? 1 : 0;
+            if (--bitIndex === -1) { byteIndex++; bitIndex = 7; }
+          }
+        }
+        row += inc;
+        if (row < 0 || size <= row) { row -= inc; inc = -inc; break; }
+      }
+    }
+    return { size, modules: M };
+  }
+  return { encode };
+})();
+window.KlarschiffQR = QR;
+
+function drawQR(canvas, text) {
+  const code = QR.encode(text);
+  if (!code) return false;
+  const quiet = 4, total = code.size + quiet * 2;
+  const scale = Math.max(2, Math.floor(600 / total));
+  canvas.width = canvas.height = total * scale;
+  const g = canvas.getContext("2d");
+  g.fillStyle = "#FFFFFF";
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.fillStyle = "#111111";
+  for (let y = 0; y < code.size; y++) for (let x = 0; x < code.size; x++)
+    if (code.modules[y][x]) g.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale);
+  return true;
+}
+
+/* ---------- UI-Helfer ---------- */
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* Konfetti */
+const cCanvas = $("#confetti"), ctx = cCanvas.getContext("2d");
+let particles = [], confettiRaf = null;
+function sizeCanvas() {
+  cCanvas.width = innerWidth * devicePixelRatio;
+  cCanvas.height = innerHeight * devicePixelRatio;
+}
+addEventListener("resize", sizeCanvas); sizeCanvas();
+function confetti(x, y, opts = {}) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const colors = ["#0FA38A", "#A855F7", "#E9B45C", "#1F6F54", "#F0876F"];
+  const glyphs = opts.glyphs || null; // z. B. ["🧦","🧹","✨"]
+  const n = opts.n || 26;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
+    particles.push({
+      x: x * devicePixelRatio, y: y * devicePixelRatio,
+      vx: Math.cos(a) * v * devicePixelRatio, vy: (Math.sin(a) * v - 4) * devicePixelRatio,
+      s: (3 + Math.random() * 4) * devicePixelRatio, r: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.3, c: colors[i % colors.length],
+      g: glyphs ? glyphs[i % glyphs.length] : null, life: 60 + Math.random() * 30,
+    });
+  }
+  if (!confettiRaf) tickConfetti();
+}
+function tickConfetti() {
+  ctx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+  particles = particles.filter((p) => p.life > 0);
+  for (const p of particles) {
+    p.life--; p.x += p.vx; p.y += p.vy; p.vy += 0.25 * devicePixelRatio; p.r += p.vr;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+    ctx.globalAlpha = Math.min(1, p.life / 30);
+    if (p.g) {
+      ctx.font = `${p.s * 3}px sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(p.g, 0, 0);
+    } else {
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+    }
+    ctx.restore();
+  }
+  confettiRaf = particles.length ? requestAnimationFrame(tickConfetti) : null;
+  if (!confettiRaf) ctx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+}
+
+/* ---------- Rendern ---------- */
+let tab = "tasks";
+let addingTask = false, addingReward = false, openMenuTask = null, openMenuReward = null,
+    editingTask = null, qrOpen = false, duelMetric = "week";
+
+function selectTab(name) {
+  tab = name;
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === name)));
+  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null;
+  render();
+}
+
+function render() {
+  $("#weekChip").textContent = "KW " + isoWeek().split("-W")[1];
+  renderScoreboard();
+  renderTabBadge();
+  const main = $("#main");
+  if (tab === "tasks") main.innerHTML = viewTasks();
+  else if (tab === "rewards") main.innerHTML = viewRewards();
+  else if (tab === "duel") main.innerHTML = viewDuel();
+  else if (tab === "history") main.innerHTML = viewHistory();
+  else main.innerHTML = viewProfile();
+  bindMain();
+}
+
+function renderTabBadge() {
+  const open = state.tasks.filter((t) => !t.archived && (t.kind === "once" || isDueToday(t)) && !todaysCompletion(t.id)).length;
+  const tabEl = document.querySelector('.tab[data-tab="tasks"]');
+  let b = tabEl.querySelector(".tab-badge");
+  if (open > 0) {
+    if (!b) { b = document.createElement("span"); b.className = "tab-badge"; tabEl.appendChild(b); }
+    b.textContent = open;
+  } else if (b) b.remove();
+}
+
+function renderScoreboard() {
+  $("#scoreboard").innerHTML = state.players.map((p) => {
+    const wk = weekPoints(p.id), otherWk = weekPoints(otherOf(p.id));
+    const crown = wk > 0 && wk > otherWk ? " 🏆" : "";
+    const st = streak(p.id);
+    const parts = [];
+    if (st > 0) parts.push(`🔥 ${st}`);
+    parts.push(`Woche +${wk} P${crown}`);
+    return `
+    <div class="score">
+      <span class="who"><span class="pdot ${p.id}"></span>${esc(displayName(p.id))}${p.id === device.me ? '<span class="me-tag">Ich</span>' : ""}</span>
+      <span class="pts">${balance(p.id)} <span style="font-size:15px">P</span></span>
+      <span class="streak">${parts.join(" · ")}</span>
+    </div>`;
+  }).join("");
+}
+
+function taskCardHtml(t) {
+  const done = todaysCompletion(t.id);
+  const once = t.kind === "once";
+  const notDue = !once && !isDueToday(t);
+  let sub;
+  if (done) {
+    sub = `Heute erledigt von ${esc(displayName(done.playerId))}` + (done.bonus ? ` · +${done.bonus} P Bonus 🏅` : "");
+  } else {
+    const bits = [];
+    if (!once && !notDue && spotlightTaskId() === t.id) bits.push(`✨ Rampenlicht: +${SPOT_BONUS} extra heute`);
+    if (once) bits.push("Einmalig");
+    else if (notDue) bits.push(`Erst ${nextDueName(t)} dran`);
+    else if (daysLabel(t) !== "täglich") bits.push(daysLabel(t));
+    if (t.assignee) bits.push(`${esc(displayName(t.assignee))}s Aufgabe · ${esc(displayName(otherOf(t.assignee)))} bekäme ${t.points + bonusFor(t.points)} P 🏅`);
+    else if (once) bits.push("wer's macht, kassiert");
+    else if (!notDue) bits.push("Heute noch offen – für beide");
+    sub = bits.join(" · ") || "Für beide";
+  }
+  return `
+  <li class="task ${done ? "done" : ""} ${notDue ? "notdue" : ""} ${!done && !once && !notDue && spotlightTaskId() === t.id ? "spotlite" : ""}" data-id="${t.id}">
+    <button class="check" data-act="check" aria-label="${done ? "Erledigung zurücknehmen" : "Als erledigt markieren"}">✓</button>
+    <div class="task-body">
+      <div class="task-title">${esc(t.title)}</div>
+      <div class="task-sub">${sub}</div>
+    </div>
+    <span class="pts-badge">+${t.points} P</span>
+    <button class="more-btn" data-act="menu" aria-label="Optionen">⋯</button>
+  </li>
+  ${openMenuTask === t.id ? `<li class="task-menu">${!done && device.me ? `<button class="ghost-btn" data-id="${t.id}" data-act="skip">${skipOf(t.id, device.me) ? "✕ zurücknehmen" : "Heute nicht geschafft ✕"}</button>` : ""}<button class="ghost-btn" data-id="${t.id}" data-act="edit">Bearbeiten</button><button class="danger-btn" data-id="${t.id}" data-act="archive">Aufgabe entfernen</button></li>` : ""}`;
+}
+
+function viewTasks() {
+  const lanes = laneCounts();
+  const tasks = state.tasks.filter((t) => !t.archived);
+  const recurring = tasks.filter((t) => t.kind !== "once");
+  const oneOffs = tasks.filter((t) => t.kind === "once");
+  const due = recurring.filter(isDueToday), later = recurring.filter((t) => !isDueToday(t));
+  const orderedRecurring = [...due.filter((t) => !todaysCompletion(t.id)), ...due.filter((t) => todaysCompletion(t.id)), ...later];
+  const dotsFor = (used) => Array.from({ length: WEEKLY_NEW_TASKS }, (_, i) => `<span class="dot ${i < used ? "used" : ""}"></span>`).join("");
+  const meterFor = (used) => WEEKLY_NEW_TASKS <= 6
+    ? `<span class="dots">${dotsFor(used)}</span>`
+    : `<span class="b-bar"><span class="b-bar-fill" style="width:${Math.min(100, (used / WEEKLY_NEW_TASKS) * 100)}%"></span></span>`;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+  return `
+    ${isIOS && !standalone && !device.installHintDismissed ? `
+    <div class="install-hint">
+      <span>📲 Wie eine echte App: In Safari <strong>Teilen → „Zum Home-Bildschirm“</strong> – mit Icon, Vollbild und Mitteilungen.</span>
+      <button class="hint-x" data-act="dismissInstall" aria-label="Hinweis ausblenden">✕</button>
+    </div>` : ""}
+    ${petCardHtml()}
+    <div class="budget">
+      <div class="budget-rows">
+        ${["p1", "p2"].map((pid) => `
+        <div class="budget-row">
+          <span class="pdot ${pid}"></span>
+          <span class="b-name">${esc(displayName(pid))}</span>
+          ${meterFor(lanes[pid])}
+          <span class="b-left">${lanes[pid] >= WEEKLY_NEW_TASKS ? "voll – ab Montag" : (WEEKLY_NEW_TASKS - lanes[pid]) + " frei"}</span>
+        </div>`).join("")}
+      </div>
+    </div>
+    ${openTasksToday().length ? `
+    <div class="sh-row">
+      <button class="add-btn" data-act="roulette">🎲 Was zuerst?</button>
+      <button class="add-btn" data-act="blitz">⏱ Blitz-Sprint</button>
+    </div>` : ""}
+    <div class="section-head">
+      <h2>Unsere Aufgaben</h2>
+      <button class="add-btn" id="addTaskBtn">+ Neu</button>
+    </div>
+    ${addingTask || editingTask ? taskFormHtml() : ""}
+    ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu ${WEEKLY_NEW_TASKS} neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
+    ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
+    ${isWheelDay() && !myWheelSpinToday() ? `<button class="install-hint" data-act="gowheel" style="width:100%;text-align:left">🎡 <strong>Glücksrad-Samstag!</strong> Dein Gratis-Dreh wartet im Duell-Tab →</button>` : ""}
+    ${(() => {
+      const todayTasks = [...due, ...oneOffs];
+      if (!todayTasks.length) return "";
+      const item = (t, skipOwner) => {
+        const done = todaysCompletion(t.id);
+        const skipped = !done && (skipOwner ? skipOf(t.id, skipOwner) : (skipOf(t.id, "p1") || skipOf(t.id, "p2")));
+        const cls = done ? `done done-${done.playerId}` : skipped ? "skipped" : "";
+        const icon = done ? "✓" : skipped ? "✕" : "·";
+        const label = done ? `Erledigt von ${displayName(done.playerId)}` : skipped ? "Heute nicht geschafft" : "Offen – antippen zum Abhaken";
+        return `
+        <button class="col-task ${cls}" data-act="check" data-id="${t.id}" aria-label="${esc(t.title)}: ${esc(label)}">
+          <span class="ct-status">${icon}</span>
+          <span class="ct-title">${spotlightTaskId() === t.id ? "✨ " : ""}${esc(t.title)}</span>
+          <span class="ct-pts">+${t.points}</span>
+        </button>`;
+      };
+      const col = (pid) => {
+        const mine = todayTasks.filter((t) => t.assignee === pid);
+        return `
+        <div class="percol">
+          <div class="per-head"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</div>
+          ${mine.length ? mine.map((t) => item(t, pid)).join("") : `<div class="empty-mini">Heute nichts Eigenes 🎉</div>`}
+        </div>`;
+      };
+      const shared = todayTasks.filter((t) => !t.assignee);
+      return `
+      <div class="section-head"><h2>Heute im Blick</h2></div>
+      <div class="form-card">
+        <div class="pergrid">${col("p1")}${col("p2")}</div>
+        ${shared.length ? `<div class="per-head shared">Für beide</div><div class="shared-list">${shared.map((t) => item(t, null)).join("")}</div>` : ""}
+        <p class="hint">Antippen zum Abhaken – geht auch in der Spalte des anderen und bringt dann 50 % Bonus 🏅. ✕ = heute nicht geschafft (im ⋯-Menü der Aufgabe, dort auch zurücknehmbar).</p>
+      </div>`;
+    })()}
+    ${recurring.length ? `<div class="section-head"><h2>🔁 Regelmäßig</h2></div>
+    <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
+    ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
+    <ul class="cards">${oneOffs.map(taskCardHtml).join("")}</ul>` : ""}
+    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat ${WEEKLY_NEW_TASKS} neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst. Abhaken fragt einmal kurz nach – nichts passiert aus Versehen; Zurücknehmen geht direkt.</p>`;
+}
+
+const TASK_SUGGESTIONS = [
+  "Jacke an den Haken hängen", "Geschirr in die Spülmaschine", "Klamotten vom Stuhl räumen",
+  "Post & Pakete wegsortieren", "Schuhe ins Regal stellen",
+];
+function diffDurOf(t) {
+  if (t.diff && t.dur) return [t.diff, t.dur];
+  for (const d of [5, 10, 15]) for (const u of [1, 1.5, 2]) if (Math.round(d * u) === t.points) return [d, u];
+  return [10, 1];
+}
+function taskFormHtml() {
+  const t = editingTask ? state.tasks.find((x) => x.id === editingTask) : null;
+  const [diff, dur] = t ? diffDurOf(t) : [10, 1];
+  // Neu: standardmäßig die ANDERE Person vorausgewählt (wer was liegen lässt, ist zuständig)
+  const who = t ? (t.assignee || "") : (device.me ? otherOf(device.me) : "");
+  const kind = t ? (t.kind === "once" ? "once" : "daily") : "daily";
+  const days = t && t.days ? t.days : [];
+  const room = t && t.room ? t.room : "";
+  const advOpen = !!t; // beim Bearbeiten sind die Detail-Optionen direkt offen
+  return `
+    <form class="form-card" id="taskForm">
+      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
+      ${t ? "" : `<div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
+      <span class="form-label">Wessen Aufgabe ist das?</span>
+      <div class="point-row" id="taskWho">
+        <button type="button" class="pt-chip" data-who="" aria-pressed="${who === ""}">Beide</button>
+        <button type="button" class="pt-chip" data-who="p1" aria-pressed="${who === "p1"}">${esc(displayName("p1"))}</button>
+        <button type="button" class="pt-chip" data-who="p2" aria-pressed="${who === "p2"}">${esc(displayName("p2"))}</button>
+      </div>
+      <span class="form-label">Nervigkeitsfaktor</span>
+      <div class="point-row" id="taskDiff">
+        <button type="button" class="pt-chip" data-val="5" aria-pressed="${diff === 5}">😌 geht so</button>
+        <button type="button" class="pt-chip" data-val="10" aria-pressed="${diff === 10}">😤 nervig</button>
+        <button type="button" class="pt-chip" data-val="15" aria-pressed="${diff === 15}">🤬 sehr nervig</button>
+      </div>
+      <span class="form-label">Dauer</span>
+      <div class="point-row" id="taskDur">
+        <button type="button" class="pt-chip" data-val="1" aria-pressed="${dur === 1}">unter 2 Min</button>
+        <button type="button" class="pt-chip" data-val="1.5" aria-pressed="${dur === 1.5}">2–10 Min</button>
+        <button type="button" class="pt-chip" data-val="2" aria-pressed="${dur === 2}">länger</button>
+      </div>
+      <div class="calc" id="taskCalc"></div>
+      <button type="button" class="sub-btn" id="taskMore" ${advOpen ? "hidden" : ""} style="align-self:flex-start;padding-left:0">Mehr anzeigen ▾</button>
+      <div id="taskAdvanced" ${advOpen ? "" : "hidden"}>
+        <span class="form-label">Art der Aufgabe</span>
+        <div class="point-row" id="taskKind">
+          <button type="button" class="pt-chip" data-kind="daily" aria-pressed="${kind === "daily"}">🔁 Regelmäßig</button>
+          <button type="button" class="pt-chip" data-kind="once" aria-pressed="${kind === "once"}">☑️ Einmalig</button>
+        </div>
+        <div id="daysRow" ${kind === "once" ? "hidden" : ""}>
+          <span class="form-label">An welchen Tagen? <span style="font-weight:400;text-transform:none;letter-spacing:0">(nichts gewählt = jeden Tag)</span></span>
+          <div class="point-row" id="taskDays" style="margin-top:8px">
+            ${DAY_NAMES.map((n, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${days.includes(i)}">${n}</button>`).join("")}
+          </div>
+        </div>
+        <span class="form-label">Raum <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional – für den Roulette-Filter)</span></span>
+        <div class="point-row" id="taskRoom">
+          <button type="button" class="pt-chip" data-room="" aria-pressed="${room === ""}">Ohne</button>
+          ${ROOMS.map((r) => `<button type="button" class="pt-chip" data-room="${esc(r)}" aria-pressed="${room === r}">${ROOM_EMOJI[r]} ${esc(r)}</button>`).join("")}
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost-btn" id="cancelTask">Abbrechen</button>
+        <button type="submit" class="add-btn">${t ? "Änderungen speichern" : "Speichern"}</button>
+      </div>
+    </form>`;
+}
+
+function petCardHtml() {
+  const s = petStage(), mood = petMood(), pet = state.pet || {};
+  const hat = petStyleEmoji();
+  return `
+    <div class="pet-card">
+      <div class="pet-stage" data-act="pettap">
+        <div class="pet-avatar mood-${mood}">
+          ${hat ? `<span class="pet-hat">${hat}</span>` : ""}
+          <span class="pet-emoji">${s.emoji}</span>
+          ${mood === "sleepy" ? `<span class="pet-zzz">💤</span>` : ""}
+        </div>
+      </div>
+      <div class="pet-info">
+        <div class="pet-name">${esc(pet.name || "Fussel")} <span class="pet-stagelabel">· ${s.name}</span></div>
+        <div class="pet-mood">${PET_MOOD_LINE[mood]}</div>
+        ${s.next
+          ? `<div class="rp"><div class="rp-fill" style="width:${s.pct}%"></div></div><div class="pet-next">Noch ${s.toNext} Aufgabe${s.toNext === 1 ? "" : "n"} bis „${s.next.name}“ 🌱</div>`
+          : `<div class="pet-next">Höchste Stufe erreicht – legendär! 🌟</div>`}
+      </div>
+      <button class="more-btn" data-act="petopen" aria-label="Haustier ansehen">⋯</button>
+    </div>`;
+}
+
+function petSpeak(stageEl) {
+  const av = stageEl.querySelector(".pet-avatar");
+  if (av) { av.classList.remove("hop"); void av.offsetWidth; av.classList.add("hop"); }
+  const phrases = PET_PHRASES[petMood()] || PET_PHRASES.content;
+  const txt = phrases[Math.floor(Math.random() * phrases.length)];
+  let b = stageEl.querySelector(".pet-bubble");
+  if (!b) { b = document.createElement("div"); b.className = "pet-bubble"; stageEl.appendChild(b); }
+  b.textContent = txt;
+  b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+  clearTimeout(petBubbleT);
+  petBubbleT = setTimeout(() => b.classList.remove("show"), 2600);
+}
+
+function openPet() {
+  if (document.querySelector(".overlay")) return;
+  const s = petStage(), pet = state.pet || {};
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2>Euer Haustier 🐣</h2>
+      <div class="pet-card" style="background:var(--card-2)">
+        <div class="pet-stage"><div class="pet-avatar mood-${petMood()}">${petStyleEmoji() ? `<span class="pet-hat">${petStyleEmoji()}</span>` : ""}<span class="pet-emoji">${s.emoji}</span></div></div>
+        <div class="pet-info">
+          <div class="pet-name">${esc(pet.name || "Fussel")} <span class="pet-stagelabel">· ${s.name}</span></div>
+          <div class="pet-next">Zusammen erledigt: ${s.count} Aufgaben</div>
+          ${s.next ? `<div class="rp"><div class="rp-fill" style="width:${s.pct}%"></div></div><div class="pet-next">Noch ${s.toNext} bis „${s.next.name}“</div>` : `<div class="pet-next">Legendär! 🌟</div>`}
+        </div>
+      </div>
+      <span class="form-label">Name</span>
+      <input id="petName" maxlength="16" value="${esc(pet.name || "")}" placeholder="z. B. Fussel" autocomplete="off">
+      <span class="form-label">Stil (durch Aufräumen freischalten)</span>
+      <div class="pet-styles" id="petStyles">
+        ${PET_STYLES.map((st) => {
+          const unlocked = st.need();
+          const active = (pet.style || "none") === st.id;
+          return `<button type="button" class="pet-style ${unlocked ? "" : "locked"}" data-style="${st.id}" aria-pressed="${active}">${st.emoji ? st.emoji + " " : ""}${st.name}${!unlocked && st.hint ? ` <span class="lock-hint">🔒 ${st.hint}</span>` : ""}</button>`;
+        }).join("")}
+      </div>
+      <p class="hint">Euer Haustier wächst mit jeder erledigten Aufgabe und reagiert auf eure Aktivität. Es wird nie traurig – nur mal gelangweilt 😴. Tipp es auf der Startseite an!</p>
+      <button class="primary-btn" id="petClose">Fertig</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => {
+    const st = e.target.closest(".pet-style");
+    if (st) {
+      const def = PET_STYLES.find((x) => x.id === st.dataset.style);
+      if (!def.need()) return toast(`Erst freischalten: ${def.hint} 🔒`);
+      state.pet.style = def.id; state.pet.updatedAt = now();
+      overlay.querySelectorAll(".pet-style").forEach((b) => b.setAttribute("aria-pressed", String(b === st)));
+      overlay.querySelector(".pet-card .pet-avatar").innerHTML =
+        (def.emoji ? `<span class="pet-hat">${def.emoji}</span>` : "") + `<span class="pet-emoji">${petStage().emoji}</span>`;
+      save();
+      return;
+    }
+    if (e.target.id === "petClose" || e.target === overlay) {
+      const nm = overlay.querySelector("#petName").value.trim();
+      if (nm && nm !== state.pet.name) { state.pet.name = nm; state.pet.updatedAt = now(); save(); }
+      overlay.remove(); render();
+    }
+  });
+}
+
+function viewRewards() {
+  const rewards = state.rewards.filter((r) => !r.archived);
+  const myBalance = device.me ? balance(device.me) : 0;
+  const log = alive(state.redemptions).sort((a, b) => b.ts - a.ts).slice(0, 10);
+  return `
+    <div class="section-head">
+      <h2>Belohnungen</h2>
+      <button class="add-btn" id="addRewardBtn">+ Neu</button>
+    </div>
+    <p class="hint">Punkte sammeln und gegen etwas Schönes eintauschen – Massage, Lieblingsessen, Serienabend mit Vetorecht …</p>
+    ${addingReward ? `
+      <form class="form-card" id="rewardForm">
+        <input id="rewardTitle" placeholder="z. B. Frühstück ans Bett" maxlength="60" autocomplete="off">
+        <div class="point-row">${["Frühstück ans Bett", "20 Min Massage", "Film aussuchen dürfen", "Ausschlafen – andere:r übernimmt", "Lieblingsessen wird gekocht"].map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}" data-input="rewardTitle">${esc(s)}</button>`).join("")}</div>
+        <div class="point-row" id="rewardPoints">
+          ${[50, 100, 150, 250, 400].map((p, i) => `<button type="button" class="pt-chip" data-pts="${p}" aria-pressed="${i === 1}">${p} P</button>`).join("")}
+        </div>
+        <div class="form-actions">
+          <button type="button" class="ghost-btn" id="cancelReward">Abbrechen</button>
+          <button type="submit" class="add-btn">Speichern</button>
+        </div>
+      </form>` : ""}
+    ${rewards.length === 0 && !addingReward ? `<div class="empty">Noch keine Belohnungen.<br>Legt gemeinsam fest, wofür sich das Sammeln lohnt!</div>` : ""}
+    <ul class="cards">
+      ${rewards.map((r) => {
+        const can = myBalance >= r.cost;
+        return `
+        <li class="reward" data-id="${r.id}">
+          <span class="reward-emoji">🎁</span>
+          <div class="reward-body">
+            <div class="reward-title">${esc(r.title)}</div>
+            <div class="reward-sub">${can ? "Du hast genug Punkte!" : `Dir fehlen noch ${r.cost - myBalance} P`}</div>
+            ${can ? "" : `<div class="rp"><div class="rp-fill" style="width:${Math.max(2, Math.min(100, (myBalance / r.cost) * 100))}%"></div></div>`}
+          </div>
+          <button class="redeem-btn" data-act="redeem" ${can ? "" : "disabled"}>${r.cost} P</button>
+          <button class="more-btn" data-act="rmenu" aria-label="Optionen">⋯</button>
+        </li>
+        ${openMenuReward === r.id ? `<li class="task-menu"><button class="danger-btn" data-id="${r.id}" data-act="archiveReward">Belohnung entfernen</button></li>` : ""}`;
+      }).join("")}
+    </ul>
+    ${log.length ? `
+      <div class="section-head"><h2>Eingelöst</h2></div>
+      <ul class="feed">
+        ${log.map((r) => `<li><span class="f-ico">🎉</span><span class="f-text"><strong>${esc(displayName(r.playerId))}</strong> hat sich „${esc(r.title)}“ gegönnt</span><span class="f-time">${fmtTime(r.ts)}</span></li>`).join("")}
+      </ul>` : ""}`;
+}
+
+function viewDuel() {
+  const initial = (pid) => (displayName(pid)[0] || "?").toUpperCase();
+  const metricChips = [["week", "Diese Woche"], ["total", "Gesamt"], ["days", "7 Tage"]]
+    .map(([m, label]) => `<button type="button" class="pt-chip" data-metric="${m}" aria-pressed="${duelMetric === m}">${label}</button>`)
+    .join("");
+
+  let chart;
+  if (duelMetric === "days") {
+    const days = [];
+    for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+    const data = days.map((d) => ({
+      lab: d.toLocaleDateString("de-DE", { weekday: "short" }),
+      full: d.toLocaleDateString("de-DE", { day: "numeric", month: "numeric" }),
+      p1: pointsOnDay("p1", dayKey(d)), p2: pointsOnDay("p2", dayKey(d)),
+    }));
+    const max = Math.max(1, ...data.flatMap((x) => [x.p1, x.p2]));
+    chart = `
+      <div class="duel-legend"><span><span class="pdot p1"></span>${esc(displayName("p1"))}</span><span><span class="pdot p2"></span>${esc(displayName("p2"))}</span></div>
+      <div class="cols">
+        ${data.map((x) => `
+        <div class="col-group" data-act="peek" data-info="${esc(`${x.lab} ${x.full}: ${displayName("p1")} ${x.p1} P · ${displayName("p2")} ${x.p2} P`)}">
+          <div class="col-pair">
+            <div class="col-track"><div class="col-fill p1" data-h="${x.p1 ? Math.max(6, (x.p1 / max) * 100) : 0}"></div></div>
+            <div class="col-track"><div class="col-fill p2" data-h="${x.p2 ? Math.max(6, (x.p2 / max) * 100) : 0}"></div></div>
+          </div>
+          <span class="col-lab">${esc(x.lab)}</span>
+        </div>`).join("")}
+      </div>
+      <p class="hint">Tipp auf einen Tag zeigt die genauen Punkte.</p>`;
+  } else {
+    const val = (pid) => (duelMetric === "week" ? weekPoints(pid) : earnedTotal(pid));
+    const v1 = val("p1"), v2 = val("p2"), max = Math.max(v1, v2, 1);
+    const row = (pid, v) => `
+      <div class="bar-row">
+        <span class="bar-name"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</span>
+        <div class="bar-track" data-act="cheer"><div class="bar-fill ${pid}" data-w="${v ? Math.max(7, (v / max) * 100) : 0}"></div></div>
+        <span class="bar-val" data-count="${v}">0 P</span>
+      </div>`;
+    chart = `<div class="form-card">${row("p1", v1)}${row("p2", v2)}</div>`;
+  }
+
+  const doneTotal = alive(state.completions).filter((c) => !c.wheel).length;
+  const doneWeek = alive(state.completions).filter((c) => !c.wheel && isoWeek(new Date(c.ts)) === isoWeek()).length;
+  const s1 = streak("p1"), s2 = streak("p2");
+  const streakLead = s1 === s2
+    ? (s1 > 0 ? `je ${s1} 🔥` : "–")
+    : `${esc(displayName(s1 > s2 ? "p1" : "p2"))}: ${Math.max(s1, s2)} 🔥`;
+  return `
+    <div class="duel-head">
+      <div class="duel-player"><span class="avatar p1">${esc(initial("p1"))}</span>${esc(displayName("p1"))}</div>
+      <span class="vs">VS</span>
+      <div class="duel-player">${esc(displayName("p2"))}<span class="avatar p2">${esc(initial("p2"))}</span></div>
+    </div>
+    <div class="form-card">
+      ${["p1", "p2"].map((pid) => {
+        const li = levelInfo(earnedTotal(pid));
+        return `
+        <div class="lvl-row">
+          <span class="lvl-name"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</span>
+          <span class="lvl-title">Lv. ${li.lvl} „${li.title}“ · noch ${li.next} P</span>
+        </div>
+        <div class="lvl-track"><div class="lvl-fill ${pid}" data-w="${li.pct}" style="width:0%"></div></div>`;
+      }).join("")}
+    </div>
+    <div class="point-row" id="duelMetric">${metricChips}</div>
+    ${chart}
+    <div class="stat-tiles">
+      <div class="stat-tile"><span class="st-label">Erledigt diese Woche</span><span class="st-val">${doneWeek}×</span></div>
+      <div class="stat-tile"><span class="st-label">Erledigt insgesamt</span><span class="st-val">${doneTotal}×</span></div>
+      <div class="stat-tile"><span class="st-label">Beste Serie</span><span class="st-val">${streakLead}</span></div>
+      <div class="stat-tile"><span class="st-label">Belohnungen eingelöst</span><span class="st-val">${alive(state.redemptions).length}×</span></div>
+    </div>
+    <div class="section-head"><h2>🎡 Samstags-Glücksrad</h2></div>
+    <div class="form-card">
+      ${(() => {
+        const spun = myWheelSpinToday();
+        if (!isWheelDay()) {
+          const d = daysUntilSaturday();
+          return `
+            <p class="hint">Jeden Samstag darf jede:r <strong>einmal</strong> am Rad drehen – von Niete bis 💰 100-Punkte-Jackpot. Noch ${d === 1 ? "1 Tag" : d + " Tage"} bis zum nächsten Dreh!</p>
+            <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, erst am Samstag drehbar"></canvas></div>`;
+        }
+        if (spun) {
+          return `
+            <p class="hint">${spun.points > 0 ? `🎉 Du hast heute <strong>${spun.points} P</strong> gewonnen!` : "😅 Heute leider eine <strong>Niete</strong> – kommt vor!"} Nächsten Samstag geht's weiter.</p>
+            <div class="wheel-wrap idle"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad, heute schon gedreht"></canvas></div>`;
+        }
+        return `
+          <p class="hint">Es ist Samstag – dein Dreh! Einmal pro Person, von Niete bis 💰 100-Punkte-Jackpot.</p>
+          <div class="wheel-wrap"><div class="wheel-pointer"></div><canvas id="wheelCanvas" aria-label="Glücksrad"></canvas></div>
+          <button class="spin-btn" id="spinBtn" data-act="spin">Drehen! 🎡</button>`;
+      })()}
+    </div>
+    <div class="section-head"><h2>Abzeichen</h2></div>
+    <div class="form-card">
+      ${["p1", "p2"].map((pid) => {
+        const S = badgeStats(pid);
+        return `
+        <div class="badge-owner"><span class="pdot ${pid}"></span>${esc(displayName(pid))}</div>
+        <div class="badge-grid">
+          ${BADGES.map(([id, emoji, name, desc]) => {
+            const got = hasBadge(id, S);
+            return `<button class="badge ${got ? "" : "locked"}" data-act="peek" data-info="${esc(got ? `${emoji} ${name}: ${desc}` : `🔒 Noch gesperrt – ${desc}`)}" aria-label="${esc(name)}">${emoji}</button>`;
+          }).join("")}
+        </div>`;
+      }).join("")}
+      <p class="hint">Antippen zeigt, wofür's das Abzeichen gibt. 🃏 Und keine Panik: Eure 🔥-Serien verzeihen einen Aussetzer-Tag.</p>
+    </div>`;
+}
+
+function viewHistory() {
+  const items = [
+    ...alive(state.completions).map((c) => ({
+      ts: c.ts, ico: c.wheel ? "🎡" : c.crit ? "💥" : c.blitz ? "⚡️" : c.bonus ? "🏅" : "✅", pts: `+${c.points}`, neg: false,
+      text: c.wheel
+        ? `<strong>${esc(displayName(c.playerId))}</strong> hat am Glücksrad ${c.points > 0 ? "gewonnen" : "eine Niete gedreht 😬"}${c.points >= 100 ? " – JACKPOT! 💰" : ""}`
+        : `<strong>${esc(displayName(c.playerId))}</strong> hat „${esc(c.title)}“ erledigt${c.crit ? " – kritischer Treffer!" : c.bonus ? " – mit Bonus" : ""}${c.spot ? " ✨" : ""}`,
+    })),
+    ...alive(state.redemptions).map((r) => ({
+      ts: r.ts, ico: "🎁", pts: `−${r.cost}`, neg: true,
+      text: `<strong>${esc(displayName(r.playerId))}</strong> hat „${esc(r.title)}“ eingelöst`,
+    })),
+  ].sort((a, b) => b.ts - a.ts).slice(0, 100);
+  const dayLabel = (ts) => {
+    const k = dayKey(new Date(ts));
+    if (k === dayKey()) return "Heute";
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    if (k === dayKey(y)) return "Gestern";
+    const d = new Date(ts);
+    return `${d.getDate()}.${d.getMonth() + 1}.`;
+  };
+  let lastDay = null;
+  const rows = items.map((i) => {
+    const k = dayKey(new Date(i.ts));
+    const head = k !== lastDay ? `<li class="feed-day">${dayLabel(i.ts)}</li>` : "";
+    lastDay = k;
+    return `${head}<li><span class="f-ico">${i.ico}</span><span class="f-text">${i.text} <span class="f-pts ${i.neg ? "neg" : ""}">${i.pts} P</span></span><span class="f-time">${fmtTime(i.ts)}</span></li>`;
+  }).join("");
+  return `
+    <div class="section-head"><h2>Verlauf</h2></div>
+    ${items.length === 0 ? `<div class="empty">Hier erscheint alles, was ihr erledigt und einlöst.</div>` : `<ul class="feed">${rows}</ul>`}
+    <p class="hint">Alles bleibt dauerhaft gespeichert und wandert mit jedem Sync komplett mit – ihr seht beide immer die ganze Geschichte.</p>`;
+}
+
+function viewProfile() {
+  const lastShare = device.lastShareAt ? fmtTime(device.lastShareAt) : null;
+  const lastImport = device.lastImportAt ? fmtTime(device.lastImportAt) : null;
+  return `
+    <div class="section-head"><h2>Profil</h2></div>
+    <div class="form-card">
+      <span class="form-label">Eure Namen</span>
+      <input id="nameP1" placeholder="Name Spieler 1" maxlength="20" value="${esc(playerById("p1").name)}" autocomplete="off">
+      <input id="nameP2" placeholder="Name Spieler 2" maxlength="20" value="${esc(playerById("p2").name)}" autocomplete="off">
+      <span class="form-label">Dieses Handy gehört …</span>
+      <div class="who-row">
+        <button class="who-pick" data-who="p1" aria-pressed="${device.me === "p1"}">${esc(displayName("p1"))}</button>
+        <button class="who-pick" data-who="p2" aria-pressed="${device.me === "p2"}">${esc(displayName("p2"))}</button>
+      </div>
+    </div>
+    <div class="section-head"><h2>QR-Code</h2></div>
+    <div class="form-card">
+      <p class="hint">Zeig diesen Code deiner Freundin – sie scannt ihn einfach mit der iPhone-Kamera. Damit meldet sie sich in derselben App an: gleicher Stand, gleiche Aufgaben, gleiche Punkte. Danach wählt sie auf ihrem Handy nur noch aus, wer sie ist.</p>
+      ${qrOpen
+        ? `<div class="qr-wrap"><canvas id="qrCanvas" aria-label="QR-Code mit eurem gemeinsamen Stand"></canvas></div><p class="hint" id="qrNote">QR-Code wird erstellt …</p>`
+        : `<button class="primary-btn" id="qrToggle">QR-Code anzeigen</button>`}
+    </div>
+    <div class="section-head"><h2>Sync-Code</h2></div>
+    <div class="form-card">
+      <p class="hint">Plan B, falls das Scannen mal nicht klappt: ein Code aus zufällig wirkenden Zahlen und Buchstaben, der euren kompletten Stand enthält. Kopieren, rüberschicken (iMessage, WhatsApp, egal) – und auf dem anderen Handy hier einfügen.</p>
+      <button class="primary-btn" id="codeCopyBtn">Sync-Code kopieren</button>
+      <span class="form-label">Code erhalten? Hier einfügen</span>
+      <input id="codeInput" placeholder="Code oder Sync-Link einfügen …" autocomplete="off">
+      <button class="primary-btn" id="codeApplyBtn">Übernehmen</button>
+    </div>
+    <div class="section-head"><h2>Automatischer Sync</h2></div>
+    <div class="form-card">
+      ${state.room ? `
+        <p class="hint">✅ <strong>Eingeschaltet.</strong> Beide Handys gleichen sich alle paar Sekunden über einen gemeinsamen, geheimen Online-Raum ab – zusätzlich sofort nach jeder Änderung und beim Öffnen der App. Die Raum-Adresse reist im QR-Code und Sync-Code automatisch mit.</p>
+        <p class="hint" id="autoSyncStatus">${autoSyncStatusText()}</p>
+      ` : syncStatus.supported === false ? `
+        <p class="hint">⛔️ <strong>Auf dieser Seite nicht möglich:</strong> Dieses Hosting (Claude-Artifact) verbietet der App aus Sicherheitsgründen jeden Kontakt zu externen Servern – ohne gemeinsamen Server kann nichts automatisch ankommen. QR-Code und Sync-Code funktionieren hier weiterhin. Wird dieselbe Datei auf normalem Hosting (z. B. GitHub Pages) betrieben, schaltet sich der automatische Sync frei.</p>
+      ` : `
+        <p class="hint">⏳ <strong>Startet automatisch …</strong> Die App richtet gerade einen gemeinsamen, geheimen Online-Raum ein (kostenlos, ohne Konto). Danach reicht <strong>einmal QR-Code scannen</strong> – ab dann gleichen sich beide Handys von allein ab, ganz ohne Code-Schicken. Falls das hier nicht anspringt, tippe zum Nachhelfen:</p>
+        <button class="primary-btn" id="autoSyncBtn">Jetzt automatischen Sync starten</button>
+      `}
+    </div>
+    <div class="section-head"><h2>Benachrichtigungen</h2></div>
+    <div class="form-card">
+      ${(() => {
+        if (typeof Notification === "undefined") {
+          return `<p class="hint">Auf diesem Gerät hier nicht verfügbar. Auf dem iPhone gibt es Mitteilungen, sobald Klarschiff über „Zum Home-Bildschirm“ installiert ist und von dort geöffnet wird – dann erscheint hier der Schalter.</p>`;
+        }
+        if (Notification.permission === "granted") {
+          return `<p class="hint">✅ <strong>An.</strong> Sobald dein Schatz etwas erledigt oder einlöst, bekommst du eine Mitteilung – während die App offen ist oder direkt beim nächsten Öffnen.</p>`;
+        }
+        if (Notification.permission === "denied") {
+          return `<p class="hint">Aktuell abgelehnt. Zum Einschalten: iPhone-Einstellungen → Mitteilungen → Klarschiff → erlauben.</p>`;
+        }
+        const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+        return `
+          <p class="hint">Bekomm eine Mitteilung, wenn dein Schatz etwas erledigt („Anna hat ‚Geschirr‘ erledigt +10 P“) – und umgekehrt.${standalone ? "" : " <strong>Wichtig fürs iPhone:</strong> Erst über „Zum Home-Bildschirm“ installieren und von dort öffnen, sonst zeigt iOS die Nachfrage nicht."}</p>
+          <button class="primary-btn" id="notifBtn">Benachrichtigungen aktivieren 🔔</button>`;
+      })()}
+    </div>
+    <div class="section-head"><h2>Gemeinsamer Stand</h2></div>
+    <div class="form-card">
+      <p class="hint">Alles wird sofort auf diesem Handy gespeichert. Mit QR-Code oder Sync-Link wandert immer der <strong>komplette</strong> Stand aufs andere Handy und wird zusammengeführt – nichts geht verloren.${state.room ? "" : " Nach ein paar erledigten Sachen einfach kurz teilen, dann seht ihr beide dasselbe."}</p>
+      <button class="primary-btn" id="shareBtn">Sync-Link senden 📤</button>
+      <button class="sub-btn" id="copyBtn">Oder Link nur kopieren</button>
+      ${lastShare || lastImport ? `<p class="hint">${lastShare ? `Zuletzt geteilt: ${lastShare}` : ""}${lastShare && lastImport ? " · " : ""}${lastImport ? `Zuletzt übernommen: ${lastImport}` : ""}</p>` : ""}
+    </div>
+    <div class="form-card">
+      <span class="form-label">Tipp fürs iPhone</span>
+      <p class="hint">In Safari: Teilen-Symbol → „Zum Home-Bildschirm“. Dann startet Klarschiff wie eine echte App im Vollbild – mit eigenem Icon.</p>
+      ${KLARSCHIFF_BUILD.startsWith("__") ? "" : `<p class="hint">Version: ${esc(KLARSCHIFF_BUILD)} – zeigt dein Handy eine ältere? App komplett schließen und neu öffnen.</p>`}
+    </div>`;
+}
+
+/* ---------- Interaktion ---------- */
+function updateTaskCalc() {
+  const el = $("#taskCalc");
+  if (!el) return;
+  const diff = +$('#taskDiff .pt-chip[aria-pressed="true"]').dataset.val;
+  const dur = +$('#taskDur .pt-chip[aria-pressed="true"]').dataset.val;
+  const pts = Math.round(diff * dur);
+  const who = $('#taskWho .pt-chip[aria-pressed="true"]').dataset.who;
+  el.innerHTML = `= <strong>${pts} P</strong>` +
+    (who ? ` &nbsp;·&nbsp; übernimmt's ${esc(displayName(otherOf(who)))}: <strong>${pts + bonusFor(pts)} P</strong> 🏅` : "");
+}
+
+function bindMain() {
+  const main = $("#main");
+
+  main.onclick = (e) => {
+    const day = e.target.closest(".day-chip");
+    if (day) {
+      day.setAttribute("aria-pressed", String(day.getAttribute("aria-pressed") !== "true"));
+      return;
+    }
+    const chip = e.target.closest(".pt-chip");
+    if (chip) {
+      if (chip.dataset.metric) { duelMetric = chip.dataset.metric; return render(); }
+      chip.parentElement.querySelectorAll(".pt-chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+      chip.setAttribute("aria-pressed", "true");
+      if (chip.parentElement.id === "taskKind") {
+        const dr = $("#daysRow");
+        if (dr) dr.hidden = chip.dataset.kind === "once";
+      }
+      updateTaskCalc();
+      return;
+    }
+    const who = e.target.closest(".who-pick");
+    if (who) {
+      device.me = who.dataset.who;
+      save(); render();
+      return;
+    }
+    const sug = e.target.closest(".sug-chip");
+    if (sug) {
+      const inp = $("#" + (sug.dataset.input || "taskTitle"));
+      if (inp) inp.value = sug.dataset.suggest; // kein focus: iOS-Tastatur nicht ungefragt öffnen
+      return;
+    }
+    const btn = e.target.closest("[data-act]");
+    if (btn) {
+      const act = btn.dataset.act;
+      const li = btn.closest("[data-id]") || btn;
+      const id = li.dataset.id;
+      if (act === "check") return toggleComplete(id, e);
+      if (act === "menu") { openMenuTask = openMenuTask === id ? null : id; return render(); }
+      if (act === "rmenu") { openMenuReward = openMenuReward === id ? null : id; return render(); }
+      if (act === "archive") return archiveTask(id);
+      if (act === "archiveReward") return archiveReward(id);
+      if (act === "edit") {
+        editingTask = id; addingTask = false; openMenuTask = null;
+        render();
+        return;
+      }
+      if (act === "redeem") return redeem(id, e);
+      if (act === "dismissInstall") { device.installHintDismissed = 1; save(); return render(); }
+      if (act === "cheer") return confetti(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2);
+      if (act === "peek") return toast(btn.dataset.info);
+      if (act === "spin") return spinWheel();
+      if (act === "gowheel") return selectTab("duel");
+      if (act === "skip") return toggleSkip(id);
+      if (act === "roulette") return openRoulette();
+      if (act === "blitz") return openBlitz();
+      if (act === "pettap") return petSpeak(li);
+      if (act === "petopen") return openPet();
+    }
+    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); }
+    if (e.target.id === "taskMore") { const a = $("#taskAdvanced"); if (a) a.hidden = false; e.target.hidden = true; return; }
+    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
+    if (e.target.id === "addRewardBtn") { addingReward = true; render(); }
+    if (e.target.id === "cancelReward") { addingReward = false; render(); }
+    if (e.target.id === "qrToggle") { qrOpen = true; render(); }
+    if (e.target.id === "shareBtn") shareSync(true);
+    if (e.target.id === "copyBtn") shareSync(false);
+    if (e.target.id === "codeCopyBtn") copySyncCode();
+    if (e.target.id === "codeApplyBtn") applySyncCode();
+    if (e.target.id === "autoSyncBtn") enableAutoSync();
+    if (e.target.id === "notifBtn") askNotifications();
+  };
+
+  main.onchange = (e) => {
+    if (e.target.id === "nameP1" || e.target.id === "nameP2") {
+      const pid = e.target.id === "nameP1" ? "p1" : "p2";
+      const val = e.target.value.trim();
+      const p = playerById(pid);
+      if (val && val !== p.name) { p.name = val; p.updatedAt = now(); save(); render(); }
+    }
+  };
+
+  $("#taskForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = $("#taskTitle").value.trim();
+    if (!title) return toast("Gib der Aufgabe einen Namen");
+    const diff = +$('#taskDiff .pt-chip[aria-pressed="true"]').dataset.val;
+    const dur = +$('#taskDur .pt-chip[aria-pressed="true"]').dataset.val;
+    const assignee = $('#taskWho .pt-chip[aria-pressed="true"]').dataset.who || null;
+    const kind = $('#taskKind .pt-chip[aria-pressed="true"]').dataset.kind;
+    const room = $('#taskRoom .pt-chip[aria-pressed="true"]').dataset.room || null;
+    let days = [...document.querySelectorAll('#taskDays .day-chip[aria-pressed="true"]')].map((b) => +b.dataset.day);
+    if (kind === "once" || days.length === 0 || days.length === 7) days = null;
+    const points = Math.round(diff * dur);
+    if (editingTask) {
+      const t = state.tasks.find((x) => x.id === editingTask);
+      if (t) Object.assign(t, { title, points, assignee, diff, dur, kind, days, room, updatedAt: now() });
+      editingTask = null; save(); render();
+      return toast("Aufgabe aktualisiert ✏️");
+    }
+    if (kind !== "once") {
+      const lanes = laneCounts();
+      const full = (assignee ? [assignee] : ["p1", "p2"]).find((l) => lanes[l] >= WEEKLY_NEW_TASKS);
+      if (full) return toast(`${displayName(full)} hat diese Woche schon ${WEEKLY_NEW_TASKS} neue Aufgaben – ab Montag wieder! (Einmal-Aufgaben gehen immer)`);
+    }
+    state.tasks.push({
+      id: uid(), title, points, assignee, diff, dur, kind, days, room,
+      week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
+    });
+    addingTask = false; save(); render();
+    toast(kind === "once" ? "Einmal-Aufgabe angelegt ✨" : "Aufgabe angelegt ✨");
+  });
+
+  $("#rewardForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = $("#rewardTitle").value.trim();
+    if (!title) return toast("Gib der Belohnung einen Namen");
+    const cost = +$('#rewardPoints .pt-chip[aria-pressed="true"]').dataset.pts;
+    state.rewards.push({ id: uid(), title, cost, createdAt: now(), archived: 0, updatedAt: now() });
+    addingReward = false; save(); render();
+    toast("Belohnung angelegt 🎁");
+  });
+
+  if (tab === "tasks" && (addingTask || editingTask)) updateTaskCalc();
+  if (tab === "tasks" && allDoneToday() && device.celebratedDay !== dayKey()) {
+    device.celebratedDay = dayKey(); save();
+    confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎉", "🫧", "✨", "🧹"], n: 36 });
+  }
+  if (tab === "profile" && qrOpen) renderQr();
+  if (tab === "duel") {
+    const wc = $("#wheelCanvas");
+    if (wc) {
+      drawWheel(wc);
+      const spun = myWheelSpinToday();
+      if (spun) {
+        let angle = spun.wheelAngle;
+        if (angle == null) {
+          let cum = 0;
+          for (const s of WHEEL_SEGS) { if (s.v === spun.points) { angle = cum + s.deg / 2; break; } cum += s.deg; }
+        }
+        if (angle != null) wc.style.transform = `rotate(${360 - angle}deg)`;
+      }
+    }
+    requestAnimationFrame(() => {
+      document.querySelectorAll(".bar-fill, .lvl-fill").forEach((b) => { b.style.width = b.dataset.w + "%"; });
+      document.querySelectorAll(".col-fill").forEach((b) => { b.style.height = b.dataset.h + "%"; });
+      document.querySelectorAll("[data-count]").forEach((el) => countUp(el, +el.dataset.count));
+    });
+  }
+}
+
+function countUp(el, target) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = target + " P"; return; }
+  const t0 = performance.now(), dur = 700;
+  const tick = (t) => {
+    const k = Math.min(1, (t - t0) / dur);
+    el.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))) + " P";
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+async function renderQr() {
+  if (!$("#qrCanvas")) return;
+  const url = await buildSyncUrl();
+  const canvas = $("#qrCanvas"), note = $("#qrNote");
+  if (!canvas) return; // Tab inzwischen gewechselt
+  if (drawQR(canvas, url)) {
+    note.textContent = "Mit der Kamera-App scannen – öffnet Klarschiff mit eurem kompletten Stand.";
+  } else {
+    canvas.closest(".qr-wrap").remove();
+    note.textContent = "Euer Verlauf ist inzwischen zu groß für einen QR-Code – nutzt einfach den Sync-Code oder Sync-Link darunter, die können beliebig viel.";
+  }
+}
+
+async function importFromText(raw) {
+  const payload = raw.includes("#sync=") ? raw.split("#sync=")[1] : raw;
+  try {
+    mergeState(await decodeSync(payload.trim()));
+    device.lastImportAt = now();
+    if (device.notifiedUpTo == null) device.notifiedUpTo = now(); // Beitritt: alte Historie nicht nachmelden
+    save();
+    notifyPartnerNews();
+    return true;
+  } catch { return false; }
+}
+
+async function copySyncCode() {
+  const code = await encodeSync();
+  try { await navigator.clipboard.writeText(code); toast("Sync-Code kopiert 📋"); }
+  catch { prompt("Code kopieren:", code); }
+  device.lastShareAt = now();
+  save();
+  if (tab === "profile") render();
+}
+
+async function applySyncCode() {
+  const raw = $("#codeInput").value.trim();
+  if (!raw) return toast("Füg zuerst einen Code ein");
+  if (await importFromText(raw)) {
+    render();
+    toast("Code übernommen – ihr seid synchron ✨");
+  } else {
+    toast("Dieser Code konnte nicht gelesen werden");
+  }
+}
+
+async function shareSync(useShareSheet) {
+  const url = await buildSyncUrl();
+  if (useShareSheet && navigator.share) {
+    try { await navigator.share({ title: "Klarschiff – unser Stand", url }); } catch { return; /* abgebrochen */ }
+  } else {
+    try { await navigator.clipboard.writeText(url); toast("Link kopiert 📋"); }
+    catch { prompt("Link kopieren:", url); }
+  }
+  device.lastShareAt = now();
+  save();
+  if (tab === "profile") render();
+}
+
+function toggleComplete(taskId, e) {
+  if (!device.me) return openSetup();
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task) return;
+  const done = todaysCompletion(taskId);
+  if (done) {
+    if (done.playerId !== device.me) return toast(`Das hat ${displayName(done.playerId)} schon erledigt`);
+    done.deleted = now(); done.updatedAt = now();
+    save(); render();
+    return toast("Zurückgenommen");
+  }
+  // Vorschau für die Bestätigung (Crit bleibt Überraschung)
+  const pBonus = task.assignee && task.assignee !== device.me ? bonusFor(task.points) : 0;
+  const pSpot = spotlightTaskId() === task.id ? SPOT_BONUS : 0;
+  const preview = task.points + pBonus + pSpot;
+  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
+  confirmSheet({
+    title: `„${esc(task.title)}“ erledigt?`,
+    body: `Das gibt dir <strong>+${preview} P</strong>${pBonus ? " – inkl. Bonus, weil's nicht dein Job war 🏅" : ""}${pSpot ? " – inkl. ✨ Rampenlicht" : ""}.`,
+    confirmLabel: "Ja, erledigt! ✅",
+    onConfirm: () => performComplete(task, cx, cy),
+  });
+}
+
+function performComplete(task, cx, cy, blitzBonus = 0) {
+  let points = task.points, bonus = 0, spot = 0, crit = 0, blitz = 0;
+  if (task.assignee && task.assignee !== device.me) {
+    bonus = bonusFor(task.points);
+    points += bonus;
+  }
+  if (spotlightTaskId() === task.id) { spot = SPOT_BONUS; points += spot; }
+  if (blitzBonus > 0) { blitz = blitzBonus; points += blitz; }
+  if (Math.random() < critChance()) { crit = 1; points *= 2; }
+  const lvlBefore = levelInfo(earnedTotal(device.me)).lvl;
+  state.completions.push({
+    id: uid(), taskId: task.id, title: task.title, points, bonus, spot, crit, blitz,
+    playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now(),
+  });
+  const mySkip = skipOf(task.id, device.me); // „doch noch geschafft“ hebt das ✕ auf
+  if (mySkip) { mySkip.deleted = now(); mySkip.updatedAt = now(); }
+  if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
+  const stageBefore = petStage().i;
+  petReactUntil = now() + 2600; // Haustier jubelt kurz mit
+  save(); render();
+  setTimeout(() => { if (tab === "tasks" && !document.querySelector(".overlay")) render(); }, 2700); // Jubel wieder beenden
+  if (petStage().i > stageBefore) {
+    setTimeout(() => { toast(`${state.pet.name || "Euer Haustier"} ist zu „${petStage().name}“ herangewachsen! 🎉`); confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🐣", "🌱", "✨", "🎉"], n: 40 }); }, 900);
+  }
+  confetti(cx, cy, crit ? { glyphs: ["💥", "⭐️", "✨"], n: 34 } : {});
+  toast(crit
+    ? `💥 KRITISCHER TREFFER! Alles doppelt: +${points} P`
+    : blitz
+      ? `⚡️ Durchgezogen! +${points} P (inkl. ${blitz} P Blitz-Bonus)`
+      : task.kind === "once"
+        ? `Einmal-Aufgabe erledigt und abgehakt ✅ +${points} P${bonus ? ` (mit ${bonus} P Bonus 🏅)` : ""}`
+        : bonus
+          ? `+${points} P – davon ${bonus} P Bonus, weil's eigentlich nicht dein Job war! 🏅`
+          : spot
+            ? `✨ Rampenlicht-Aufgabe: +${points} P (inkl. ${spot} extra)!`
+            : `+${points} P für dich! 🎉`);
+  const after = levelInfo(earnedTotal(device.me));
+  if (after.lvl > lvlBefore) {
+    setTimeout(() => {
+      toast(`🎖 LEVEL UP! Du bist jetzt Lv. ${after.lvl} „${after.title}“`);
+      confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🎖", "🧹", "✨", "🫧"], n: 40 });
+    }, 1800);
+  }
+}
+
+function confirmSheet({ title, body, confirmLabel, cancelLabel, onConfirm }) {
+  if (document.querySelector(".overlay")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2>${title}</h2>
+      ${body ? `<p class="hint">${body}</p>` : ""}
+      <button class="primary-btn" id="cfYes">${confirmLabel}</button>
+      <button class="sub-btn" id="cfNo">${cancelLabel || "Abbrechen"}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => {
+    if (e.target.id === "cfYes") { overlay.remove(); onConfirm(); }
+    else if (e.target.id === "cfNo" || e.target === overlay) overlay.remove();
+  });
+}
+
+function toggleSkip(taskId) {
+  if (!device.me) return openSetup();
+  const ex = skipOf(taskId, device.me);
+  if (ex) {
+    ex.deleted = now(); ex.updatedAt = now();
+    toast("Wieder offen – du schaffst das 💪");
+  } else {
+    if (todaysCompletion(taskId)) { openMenuTask = null; return toast("Ist ja schon erledigt 🎉"); }
+    state.skips.push({ id: uid(), taskId, playerId: device.me, day: dayKey(), ts: now(), deleted: 0, updatedAt: now() });
+    toast("Okay, heute nicht – morgen ist auch ein Tag 💚");
+  }
+  openMenuTask = null; save(); render();
+}
+
+function archiveReward(rewardId) {
+  const r = state.rewards.find((x) => x.id === rewardId);
+  if (r) { r.archived = now(); r.updatedAt = now(); }
+  openMenuReward = null; save(); render();
+  toast("Belohnung entfernt");
+}
+
+function archiveTask(taskId) {
+  const t = state.tasks.find((x) => x.id === taskId);
+  if (t) { t.archived = now(); t.updatedAt = now(); }
+  openMenuTask = null; save(); render();
+  toast("Aufgabe entfernt");
+}
+
+function redeem(rewardId, e) {
+  if (!device.me) return openSetup();
+  const r = state.rewards.find((x) => x.id === rewardId);
+  if (!r || balance(device.me) < r.cost) return;
+  const cx = e.clientX || innerWidth / 2, cy = e.clientY || innerHeight / 3;
+  confirmSheet({
+    title: `„${esc(r.title)}“ einlösen?`,
+    body: `Dafür gehen <strong>${r.cost} P</strong> von deinem Konto (aktuell ${balance(device.me)} P).`,
+    confirmLabel: "Einlösen 🎁",
+    onConfirm: () => {
+      state.redemptions.push({ id: uid(), rewardId, title: r.title, cost: r.cost, playerId: device.me, ts: now(), deleted: 0, updatedAt: now() });
+      save(); render();
+      confetti(cx, cy);
+      toast(`„${r.title}“ eingelöst – gönn's dir! 🎉`);
+    },
+  });
+}
+
+/* Tabs */
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => selectTab(t.dataset.tab));
+});
+$("#profileShortcut").addEventListener("click", () => selectTab("profile"));
+
+/* ---------- Ersteinrichtung ---------- */
+function openSetup() {
+  if (document.querySelector(".overlay")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2>Willkommen bei Klarschiff! 🧹</h2>
+      <p class="hint">Kurz einrichten: Wie heißt ihr zwei, und wessen Handy ist das hier?</p>
+      <span class="form-label">Eure Namen</span>
+      <input id="setupP1" placeholder="Name Spieler 1" maxlength="20" value="${esc(playerById("p1").name)}" autocomplete="off">
+      <input id="setupP2" placeholder="Name Spieler 2" maxlength="20" value="${esc(playerById("p2").name)}" autocomplete="off">
+      <span class="form-label">Dieses Handy gehört …</span>
+      <div class="who-row">
+        <button class="who-pick" data-who="p1" aria-pressed="${device.me === "p1"}">${esc(displayName("p1"))}</button>
+        <button class="who-pick" data-who="p2" aria-pressed="${device.me === "p2"}">${esc(displayName("p2"))}</button>
+      </div>
+      <button class="primary-btn" id="setupGo">Los geht's!</button>
+      <button class="sub-btn" id="setupCodeToggle">Ich habe schon einen Sync-Code oder QR-Link</button>
+      <div id="setupCodeRow" hidden>
+        <input id="setupCodeInput" placeholder="Code oder Link einfügen …" autocomplete="off">
+        <button class="primary-btn" id="setupCodeApply" style="margin-top:10px">Code übernehmen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", async (e) => {
+    const who = e.target.closest(".who-pick");
+    if (who) {
+      device.me = who.dataset.who;
+      overlay.querySelectorAll(".who-pick").forEach((b) => b.setAttribute("aria-pressed", String(b === who)));
+      return;
+    }
+    if (e.target.id === "setupCodeToggle") {
+      overlay.querySelector("#setupCodeRow").hidden = false; // kein focus: Tastatur erst beim Antippen
+      return;
+    }
+    if (e.target.id === "setupCodeApply") {
+      const raw = overlay.querySelector("#setupCodeInput").value.trim();
+      if (!raw) return toast("Füg zuerst den Code ein");
+      if (await importFromText(raw)) {
+        overlay.remove(); render();
+        toast("Stand übernommen – sag nur noch, wer du bist ✨");
+        openSetup(); // Namen sind jetzt vorausgefüllt, nur noch „wer bin ich“ wählen
+      } else {
+        toast("Dieser Code konnte nicht gelesen werden");
+      }
+      return;
+    }
+    if (e.target.id === "setupGo") {
+      for (const [inputId, pid] of [["#setupP1", "p1"], ["#setupP2", "p2"]]) {
+        const val = overlay.querySelector(inputId).value.trim();
+        const p = playerById(pid);
+        if (val && val !== p.name) { p.name = val; p.updatedAt = now(); }
+      }
+      if (state.players.some((p) => !p.name)) return toast("Tragt noch eure Namen ein");
+      if (!device.me) return toast("Sag noch kurz, wessen Handy das ist");
+      overlay.remove(); save(); render();
+      maybeAutoEnableSync().then(autoSyncTick); // Sync sofort selbst starten, sobald klar ist wer wer ist
+    }
+  });
+}
+
+/* ---------- Start: Sync-Import & Erstlauf ---------- */
+async function boot() {
+  const m = location.hash.match(/#sync=(.+)/);
+  if (m) {
+    try {
+      const incoming = await decodeSync(m[1]);
+      mergeState(incoming);
+      device.lastImportAt = now();
+      save();
+      toast("Stand übernommen – ihr seid synchron ✨");
+    } catch { toast("Der Sync-Link konnte nicht gelesen werden"); }
+    try { history.replaceState(null, "", location.pathname + location.search); } catch { /* sandboxed */ }
+  }
+  render();
+  if (!device.me || state.players.some((p) => !p.name)) openSetup();
+  if (device.notifiedUpTo == null) { device.notifiedUpTo = now(); save(); }
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register("./sw.js").catch(() => { /* z. B. Artifact-Hosting */ });
+  }
+  maybeAutoEnableSync().then(autoSyncTick); // Raum ggf. automatisch anlegen, dann syncen
+  setInterval(() => { maybeAutoEnableSync().then(autoSyncTick); }, SYNC_INTERVAL);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") maybeAutoEnableSync().then(autoSyncTick);
+  });
+}
+boot();
+})();
+</script>
