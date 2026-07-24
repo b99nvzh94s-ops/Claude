@@ -1846,7 +1846,7 @@ function bindMain() {
     const sug = e.target.closest(".sug-chip");
     if (sug) {
       const inp = $("#" + (sug.dataset.input || "taskTitle"));
-      if (inp) { inp.value = sug.dataset.suggest; inp.focus(); }
+      if (inp) inp.value = sug.dataset.suggest; // kein focus: iOS-Tastatur nicht ungefragt öffnen
       return;
     }
     const btn = e.target.closest("[data-act]");
@@ -1861,7 +1861,7 @@ function bindMain() {
       if (act === "archiveReward") return archiveReward(id);
       if (act === "edit") {
         editingTask = id; addingTask = false; openMenuTask = null;
-        render(); $("#taskTitle")?.focus();
+        render();
         return;
       }
       if (act === "redeem") return redeem(id, e);
@@ -1874,9 +1874,9 @@ function bindMain() {
       if (act === "roulette") return openRoulette();
       if (act === "blitz") return openBlitz();
     }
-    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); $("#taskTitle")?.focus(); }
+    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); }
     if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
-    if (e.target.id === "addRewardBtn") { addingReward = true; render(); $("#rewardTitle")?.focus(); }
+    if (e.target.id === "addRewardBtn") { addingReward = true; render(); }
     if (e.target.id === "cancelReward") { addingReward = false; render(); }
     if (e.target.id === "qrToggle") { qrOpen = true; render(); }
     if (e.target.id === "shareBtn") shareSync(true);
@@ -2200,8 +2200,7 @@ function openSetup() {
       return;
     }
     if (e.target.id === "setupCodeToggle") {
-      overlay.querySelector("#setupCodeRow").hidden = false;
-      overlay.querySelector("#setupCodeInput").focus();
+      overlay.querySelector("#setupCodeRow").hidden = false; // kein focus: Tastatur erst beim Antippen
       return;
     }
     if (e.target.id === "setupCodeApply") {
