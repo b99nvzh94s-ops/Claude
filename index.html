@@ -272,6 +272,50 @@
     font-size: 12px; color: var(--muted); border: 1px dashed var(--line);
     border-radius: 12px; padding: 10px; text-align: center;
   }
+
+  .pet-card {
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, var(--spruce-soft), var(--card));
+    border-radius: 18px; box-shadow: var(--shadow); padding: 12px 8px 12px 14px; position: relative;
+  }
+  .pet-stage { flex: none; position: relative; }
+  .pet-avatar { position: relative; width: 66px; height: 62px; display: grid; place-items: center; cursor: pointer; }
+  .pet-emoji { font-size: 46px; line-height: 1; display: block; transform-origin: center bottom; }
+  .pet-hat { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); font-size: 25px; z-index: 2; pointer-events: none; }
+  .pet-zzz { position: absolute; top: -2px; right: -2px; font-size: 16px; animation: petzzz 2.4s ease-in-out infinite; }
+  .mood-happy .pet-emoji { animation: petbob 1.3s ease-in-out infinite; }
+  .mood-party .pet-emoji { animation: petdance .6s ease-in-out infinite; }
+  .mood-content .pet-emoji { animation: petsway 3s ease-in-out infinite; }
+  .mood-sleepy .pet-emoji { animation: petbreathe 3.6s ease-in-out infinite; filter: saturate(.75); }
+  .mood-celebrate .pet-emoji { animation: petjump .5s ease-in-out infinite; }
+  .pet-avatar.hop .pet-emoji { animation: petjump .45s ease; }
+  @keyframes petbob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes petdance { 0%,100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+  @keyframes petsway { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+  @keyframes petbreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  @keyframes petjump { 0%,100% { transform: translateY(0); } 40% { transform: translateY(-13px); } }
+  @keyframes petzzz { 0% { opacity: .3; transform: translateY(2px); } 50% { opacity: 1; } 100% { opacity: .3; transform: translateY(-5px); } }
+  .pet-info { flex: 1; min-width: 0; }
+  .pet-name { font-family: var(--display); font-weight: 800; font-size: 15px; }
+  .pet-stagelabel { color: var(--muted); font-weight: 600; font-size: 13px; }
+  .pet-mood { font-size: 12px; color: var(--muted); margin: 1px 0 6px; }
+  .pet-next { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .pet-bubble {
+    position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, 4px);
+    background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 600;
+    padding: 7px 11px; border-radius: 12px; max-width: 58vw; text-align: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 5;
+  }
+  .pet-bubble.show { opacity: 1; transform: translate(-50%, -2px); }
+  .pet-styles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pet-style {
+    border: 1.5px solid var(--line); background: var(--card-2); border-radius: 12px;
+    padding: 8px 12px; min-height: 44px; font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pet-style[aria-pressed="true"] { border-color: var(--spruce); background: var(--spruce-soft); color: var(--spruce); }
+  .pet-style.locked { opacity: .45; }
+  .pet-style .lock-hint { font-size: 11px; color: var(--muted); font-weight: 500; }
   .day-chip {
     font-family: var(--display); font-weight: 700; font-size: 13px;
     width: 40px; min-height: 38px; border: 1.5px solid var(--line);
@@ -495,10 +539,12 @@ function freshState() {
     rewards: [],      // {id,title,cost,createdAt,archived,updatedAt}
     redemptions: [],  // {id,rewardId,title,cost,playerId,ts,deleted,updatedAt}
     skips: [],        // {id,taskId,playerId,day,ts,deleted,updatedAt} – „heute nicht geschafft“
+    pet: { name: "Fussel", style: "none", createdAt: now(), updatedAt: 0 }, // gemeinsames Haustier (updatedAt 0: Standard verliert gegen echte Änderung)
   };
 }
 let state = load(LS_STATE) || freshState();
 state.skips = state.skips || []; // Migration älterer Stände
+state.pet = state.pet || { name: "Fussel", style: "none", createdAt: now(), updatedAt: 0 };
 let device = load(LS_DEVICE) || { me: null };
 
 function load(key) {
@@ -871,6 +917,66 @@ function allDoneToday() {
   const due = state.tasks.filter((t) => !t.archived && t.kind !== "once" && isDueToday(t));
   return due.length > 0 && open.length === 0;
 }
+
+/* ---------- Haushalts-Haustier (gemeinsam) ---------- */
+const PET_STAGES = [
+  { min: 0, emoji: "🥚", name: "Ei" },
+  { min: 3, emoji: "🐣", name: "Baby" },
+  { min: 10, emoji: "🐥", name: "Küken" },
+  { min: 25, emoji: "🐤", name: "Jungvogel" },
+  { min: 60, emoji: "🐔", name: "Erwachsen" },
+  { min: 120, emoji: "🦚", name: "Legendär" },
+];
+function teamDoneCount() {
+  return alive(state.completions).filter((c) => !c.wheel).length;
+}
+function petStage() {
+  const n = teamDoneCount();
+  let i = 0;
+  for (let k = 0; k < PET_STAGES.length; k++) if (n >= PET_STAGES[k].min) i = k;
+  const cur = PET_STAGES[i], next = PET_STAGES[i + 1] || null;
+  return {
+    i, emoji: cur.emoji, name: cur.name, count: n, next,
+    toNext: next ? next.min - n : 0,
+    pct: next ? ((n - cur.min) / (next.min - cur.min)) * 100 : 100,
+  };
+}
+let petReactUntil = 0, petBubbleT = null;
+function petMood() {
+  if (now() < petReactUntil) return "celebrate";
+  const today = alive(state.completions).filter((c) => !c.wheel && c.day === dayKey()).length;
+  if (today >= 3) return "party";
+  if (today >= 1) return "happy";
+  const days = alive(state.completions).filter((c) => !c.wheel).map((c) => c.day);
+  if (!days.length) return "content";
+  const recent = days.reduce((a, b) => (a > b ? a : b));
+  const diff = Math.round((new Date(dayKey() + "T12:00") - new Date(recent + "T12:00")) / 86400000);
+  return diff >= 2 ? "sleepy" : "content";
+}
+const PET_MOOD_LINE = {
+  party: "tanzt vor Freude! 🎉", happy: "freut sich – weiter so! 😊",
+  content: "wartet gespannt auf euch", sleepy: "döst gelangweilt vor sich hin 😴",
+  celebrate: "jubelt! 🎉",
+};
+const PET_PHRASES = {
+  party: ["Wow, was für ein Tag! 🎉", "Ihr seid heute unaufhaltsam!", "Ich tanz vor Freude!"],
+  happy: ["Weiter so! 💪", "Das fühlt sich gut an!", "Noch was? Ich bin dabei!"],
+  content: ["Bereit, wenn ihr's seid.", "Was machen wir als Nächstes?", "Ich glaub an euch!", "Eine kleine Aufgabe geht immer 😊"],
+  sleepy: ["*gähn* … eine Aufgabe weckt mich 😴", "Mir ist langweilig … räumen wir was weg?", "Zzz… der Müll wartet schon.", "Ich vermisse das Konfetti …"],
+  celebrate: ["Yesss! Geschafft! 🎉", "Du bist super!", "Noch eine? Los!"],
+};
+const PET_STYLES = [
+  { id: "none", emoji: "", name: "Natur pur", need: () => true, hint: "" },
+  { id: "cap", emoji: "🧢", name: "Cap", need: () => teamDoneCount() >= 10, hint: "10 Aufgaben" },
+  { id: "grad", emoji: "🎓", name: "Schlaumütze", need: () => teamDoneCount() >= 25, hint: "25 Aufgaben" },
+  { id: "shades", emoji: "🕶️", name: "Sonnenbrille", need: () => Math.max(maxStreak("p1"), maxStreak("p2")) >= 7, hint: "7-Tage-Serie" },
+  { id: "crown", emoji: "👑", name: "Krone", need: () => teamDoneCount() >= 60, hint: "60 Aufgaben" },
+  { id: "top", emoji: "🎩", name: "Zylinder", need: () => teamDoneCount() >= 120, hint: "120 Aufgaben" },
+];
+function petStyleEmoji() {
+  const s = PET_STYLES.find((x) => x.id === (state.pet && state.pet.style));
+  return s && s.need() ? s.emoji : "";
+}
 // Wochen-Kontingent pro Person: „Beide“-Aufgaben zählen bei beiden,
 // Einmal-Aufgaben zählen gar nicht (das Limit schützt vor zu vielen neuen Gewohnheiten)
 function laneCounts() {
@@ -937,6 +1043,15 @@ function mergeState(incoming) {
   // Sync-Raum: beide Geräte einigen sich deterministisch auf den ältesten
   if (incoming.room && (!state.room || incoming.room.createdAt < state.room.createdAt)) {
     state.room = incoming.room;
+  }
+  // Haustier: Name/Style nach updatedAt (neuer gewinnt), Geburtsdatum = ältestes
+  if (incoming.pet) {
+    if (!state.pet) state.pet = incoming.pet;
+    else {
+      const born = Math.min(state.pet.createdAt || now(), incoming.pet.createdAt || now());
+      if ((incoming.pet.updatedAt || 0) > (state.pet.updatedAt || 0)) state.pet = { ...incoming.pet };
+      state.pet.createdAt = born;
+    }
   }
   save();
 }
@@ -1419,6 +1534,7 @@ function viewTasks() {
       <span>📲 Wie eine echte App: In Safari <strong>Teilen → „Zum Home-Bildschirm“</strong> – mit Icon, Vollbild und Mitteilungen.</span>
       <button class="hint-x" data-act="dismissInstall" aria-label="Hinweis ausblenden">✕</button>
     </div>` : ""}
+    ${petCardHtml()}
     <div class="budget">
       <div class="budget-rows">
         ${["p1", "p2"].map((pid) => `
@@ -1537,6 +1653,92 @@ function taskFormHtml() {
         <button type="submit" class="add-btn">${t ? "Änderungen speichern" : "Speichern"}</button>
       </div>
     </form>`;
+}
+
+function petCardHtml() {
+  const s = petStage(), mood = petMood(), pet = state.pet || {};
+  const hat = petStyleEmoji();
+  return `
+    <div class="pet-card">
+      <div class="pet-stage" data-act="pettap">
+        <div class="pet-avatar mood-${mood}">
+          ${hat ? `<span class="pet-hat">${hat}</span>` : ""}
+          <span class="pet-emoji">${s.emoji}</span>
+          ${mood === "sleepy" ? `<span class="pet-zzz">💤</span>` : ""}
+        </div>
+      </div>
+      <div class="pet-info">
+        <div class="pet-name">${esc(pet.name || "Fussel")} <span class="pet-stagelabel">· ${s.name}</span></div>
+        <div class="pet-mood">${PET_MOOD_LINE[mood]}</div>
+        ${s.next
+          ? `<div class="rp"><div class="rp-fill" style="width:${s.pct}%"></div></div><div class="pet-next">Noch ${s.toNext} Aufgabe${s.toNext === 1 ? "" : "n"} bis „${s.next.name}“ 🌱</div>`
+          : `<div class="pet-next">Höchste Stufe erreicht – legendär! 🌟</div>`}
+      </div>
+      <button class="more-btn" data-act="petopen" aria-label="Haustier ansehen">⋯</button>
+    </div>`;
+}
+
+function petSpeak(stageEl) {
+  const av = stageEl.querySelector(".pet-avatar");
+  if (av) { av.classList.remove("hop"); void av.offsetWidth; av.classList.add("hop"); }
+  const phrases = PET_PHRASES[petMood()] || PET_PHRASES.content;
+  const txt = phrases[Math.floor(Math.random() * phrases.length)];
+  let b = stageEl.querySelector(".pet-bubble");
+  if (!b) { b = document.createElement("div"); b.className = "pet-bubble"; stageEl.appendChild(b); }
+  b.textContent = txt;
+  b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+  clearTimeout(petBubbleT);
+  petBubbleT = setTimeout(() => b.classList.remove("show"), 2600);
+}
+
+function openPet() {
+  if (document.querySelector(".overlay")) return;
+  const s = petStage(), pet = state.pet || {};
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2>Euer Haustier 🐣</h2>
+      <div class="pet-card" style="background:var(--card-2)">
+        <div class="pet-stage"><div class="pet-avatar mood-${petMood()}">${petStyleEmoji() ? `<span class="pet-hat">${petStyleEmoji()}</span>` : ""}<span class="pet-emoji">${s.emoji}</span></div></div>
+        <div class="pet-info">
+          <div class="pet-name">${esc(pet.name || "Fussel")} <span class="pet-stagelabel">· ${s.name}</span></div>
+          <div class="pet-next">Zusammen erledigt: ${s.count} Aufgaben</div>
+          ${s.next ? `<div class="rp"><div class="rp-fill" style="width:${s.pct}%"></div></div><div class="pet-next">Noch ${s.toNext} bis „${s.next.name}“</div>` : `<div class="pet-next">Legendär! 🌟</div>`}
+        </div>
+      </div>
+      <span class="form-label">Name</span>
+      <input id="petName" maxlength="16" value="${esc(pet.name || "")}" placeholder="z. B. Fussel" autocomplete="off">
+      <span class="form-label">Stil (durch Aufräumen freischalten)</span>
+      <div class="pet-styles" id="petStyles">
+        ${PET_STYLES.map((st) => {
+          const unlocked = st.need();
+          const active = (pet.style || "none") === st.id;
+          return `<button type="button" class="pet-style ${unlocked ? "" : "locked"}" data-style="${st.id}" aria-pressed="${active}">${st.emoji ? st.emoji + " " : ""}${st.name}${!unlocked && st.hint ? ` <span class="lock-hint">🔒 ${st.hint}</span>` : ""}</button>`;
+        }).join("")}
+      </div>
+      <p class="hint">Euer Haustier wächst mit jeder erledigten Aufgabe und reagiert auf eure Aktivität. Es wird nie traurig – nur mal gelangweilt 😴. Tipp es auf der Startseite an!</p>
+      <button class="primary-btn" id="petClose">Fertig</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => {
+    const st = e.target.closest(".pet-style");
+    if (st) {
+      const def = PET_STYLES.find((x) => x.id === st.dataset.style);
+      if (!def.need()) return toast(`Erst freischalten: ${def.hint} 🔒`);
+      state.pet.style = def.id; state.pet.updatedAt = now();
+      overlay.querySelectorAll(".pet-style").forEach((b) => b.setAttribute("aria-pressed", String(b === st)));
+      overlay.querySelector(".pet-card .pet-avatar").innerHTML =
+        (def.emoji ? `<span class="pet-hat">${def.emoji}</span>` : "") + `<span class="pet-emoji">${petStage().emoji}</span>`;
+      save();
+      return;
+    }
+    if (e.target.id === "petClose" || e.target === overlay) {
+      const nm = overlay.querySelector("#petName").value.trim();
+      if (nm && nm !== state.pet.name) { state.pet.name = nm; state.pet.updatedAt = now(); save(); }
+      overlay.remove(); render();
+    }
+  });
 }
 
 function viewRewards() {
@@ -1873,6 +2075,8 @@ function bindMain() {
       if (act === "skip") return toggleSkip(id);
       if (act === "roulette") return openRoulette();
       if (act === "blitz") return openBlitz();
+      if (act === "pettap") return petSpeak(li);
+      if (act === "petopen") return openPet();
     }
     if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); }
     if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
@@ -2074,7 +2278,13 @@ function performComplete(task, cx, cy, blitzBonus = 0) {
   const mySkip = skipOf(task.id, device.me); // „doch noch geschafft“ hebt das ✕ auf
   if (mySkip) { mySkip.deleted = now(); mySkip.updatedAt = now(); }
   if (task.kind === "once") { task.archived = now(); task.updatedAt = now(); }
+  const stageBefore = petStage().i;
+  petReactUntil = now() + 2600; // Haustier jubelt kurz mit
   save(); render();
+  setTimeout(() => { if (tab === "tasks" && !document.querySelector(".overlay")) render(); }, 2700); // Jubel wieder beenden
+  if (petStage().i > stageBefore) {
+    setTimeout(() => { toast(`${state.pet.name || "Euer Haustier"} ist zu „${petStage().name}“ herangewachsen! 🎉`); confetti(innerWidth / 2, innerHeight / 3, { glyphs: ["🐣", "🌱", "✨", "🎉"], n: 40 }); }, 900);
+  }
   confetti(cx, cy, crit ? { glyphs: ["💥", "⭐️", "✨"], n: 34 } : {});
   toast(crit
     ? `💥 KRITISCHER TREFFER! Alles doppelt: +${points} P`
