@@ -877,7 +877,7 @@ function laneCounts() {
   const w = isoWeek();
   const c = { p1: 0, p2: 0 };
   for (const t of state.tasks) {
-    if (t.week !== w || t.kind === "once") continue;
+    if (t.week !== w || t.kind === "once" || t.archived) continue; // gelöschte geben ihren Slot wieder frei
     if (t.assignee) c[t.assignee]++;
     else { c.p1++; c.p2++; }
   }
