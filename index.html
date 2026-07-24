@@ -418,7 +418,9 @@
   .budget-rows { display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .budget-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .budget-row .b-name { font-weight: 600; min-width: 64px; }
-  .budget-row .b-left { color: var(--muted); margin-left: auto; }
+  .budget-row .b-left { color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .budget-row .b-bar { flex: 1; height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; min-width: 40px; }
+  .budget-row .b-bar-fill { display: block; height: 100%; background: var(--spruce); border-radius: 999px; }
 
   .duel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; }
   .duel-player { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 16px; }
@@ -578,7 +580,7 @@ function fmtTime(ts) {
 }
 
 /* ---------- Abgeleitete Daten ---------- */
-const WEEKLY_NEW_TASKS = +localStorage.getItem("klarschiff.weeklylimit") || 5;
+const WEEKLY_NEW_TASKS = +localStorage.getItem("klarschiff.weeklylimit") || 10;
 const alive = (arr) => arr.filter((x) => !x.deleted);
 const playerById = (id) => state.players.find((p) => p.id === id);
 const displayName = (id) => (playerById(id)?.name || (id === "p1" ? "Spieler 1" : "Spieler 2"));
@@ -1508,12 +1510,12 @@ function tickConfetti() {
 /* ---------- Rendern ---------- */
 let tab = "tasks";
 let addingTask = false, addingReward = false, openMenuTask = null, openMenuReward = null,
-    editingTask = null, qrOpen = false, duelMetric = "week";
+    editingTask = null, qrOpen = false, duelMetric = "week", quickAdd = false, pendingTitle = "";
 
 function selectTab(name) {
   tab = name;
   document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === name)));
-  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null;
+  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null; quickAdd = false; pendingTitle = "";
   render();
 }
 
@@ -1596,6 +1598,9 @@ function viewTasks() {
   const due = recurring.filter(isDueToday), later = recurring.filter((t) => !isDueToday(t));
   const orderedRecurring = [...due.filter((t) => !todaysCompletion(t.id)), ...due.filter((t) => todaysCompletion(t.id)), ...later];
   const dotsFor = (used) => Array.from({ length: WEEKLY_NEW_TASKS }, (_, i) => `<span class="dot ${i < used ? "used" : ""}"></span>`).join("");
+  const meterFor = (used) => WEEKLY_NEW_TASKS <= 6
+    ? `<span class="dots">${dotsFor(used)}</span>`
+    : `<span class="b-bar"><span class="b-bar-fill" style="width:${Math.min(100, (used / WEEKLY_NEW_TASKS) * 100)}%"></span></span>`;
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
   return `
@@ -1611,8 +1616,8 @@ function viewTasks() {
         <div class="budget-row">
           <span class="pdot ${pid}"></span>
           <span class="b-name">${esc(displayName(pid))}</span>
-          <span class="dots">${dotsFor(lanes[pid])}</span>
-          <span class="b-left">${lanes[pid] >= WEEKLY_NEW_TASKS ? "voll – ab Montag wieder" : (WEEKLY_NEW_TASKS - lanes[pid]) + " neue frei"}</span>
+          ${meterFor(lanes[pid])}
+          <span class="b-left">${lanes[pid] >= WEEKLY_NEW_TASKS ? "voll – ab Montag" : (WEEKLY_NEW_TASKS - lanes[pid]) + " frei"}</span>
         </div>`).join("")}
       </div>
     </div>
@@ -1625,6 +1630,7 @@ function viewTasks() {
       <h2>Unsere Aufgaben</h2>
       <button class="add-btn" id="addTaskBtn">+ Neu</button>
     </div>
+    ${quickAdd ? quickAddHtml() : ""}
     ${addingTask || editingTask ? taskFormHtml() : ""}
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu ${WEEKLY_NEW_TASKS} neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
     ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
@@ -1678,6 +1684,21 @@ function diffDurOf(t) {
   for (const d of [5, 10, 15]) for (const u of [1, 1.5, 2]) if (Math.round(d * u) === t.points) return [d, u];
   return [10, 1];
 }
+const QUICK_DEFAULTS = { diff: 5, dur: 1.5, kind: "once", assignee: null, room: null }; // 😌, ~5 Min, einmalig, für beide
+function quickAddHtml() {
+  return `
+    <form class="form-card" id="quickForm">
+      <input id="quickTitle" placeholder="z. B. Fenster geputzt" maxlength="60" autocomplete="off" value="${esc(pendingTitle)}">
+      <div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}" data-input="quickTitle">${esc(s)}</button>`).join("")}</div>
+      <p class="hint">Wird schnell als Einmal-Aufgabe für beide gespeichert (😌 · ~5 Min · ${Math.round(QUICK_DEFAULTS.diff * QUICK_DEFAULTS.dur)} P). Danach kannst du noch anpassen.</p>
+      <div class="form-actions">
+        <button type="button" class="ghost-btn" id="quickMore">Mehr Optionen ▾</button>
+        <button type="submit" class="add-btn">Speichern</button>
+      </div>
+      <button type="button" class="sub-btn" id="quickCancel" style="width:100%">Abbrechen</button>
+    </form>`;
+}
+
 function taskFormHtml() {
   const t = editingTask ? state.tasks.find((x) => x.id === editingTask) : null;
   const [diff, dur] = t ? diffDurOf(t) : [10, 1];
@@ -1687,7 +1708,7 @@ function taskFormHtml() {
   const room = t && t.room ? t.room : "";
   return `
     <form class="form-card" id="taskForm">
-      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
+      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : esc(pendingTitle)}">
       ${t ? "" : `<div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
       <span class="form-label">Art der Aufgabe</span>
       <div class="point-row" id="taskKind">
@@ -2154,8 +2175,10 @@ function bindMain() {
       if (act === "pettap") return petSpeak(li);
       if (act === "petopen") return openPet();
     }
-    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); }
-    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
+    if (e.target.id === "addTaskBtn") { quickAdd = true; addingTask = false; editingTask = null; pendingTitle = ""; render(); }
+    if (e.target.id === "quickCancel") { quickAdd = false; pendingTitle = ""; render(); }
+    if (e.target.id === "quickMore") { pendingTitle = ($("#quickTitle") || {}).value || ""; quickAdd = false; addingTask = true; editingTask = null; render(); }
+    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; pendingTitle = ""; render(); }
     if (e.target.id === "addRewardBtn") { addingReward = true; render(); }
     if (e.target.id === "cancelReward") { addingReward = false; render(); }
     if (e.target.id === "qrToggle") { qrOpen = true; render(); }
@@ -2175,6 +2198,27 @@ function bindMain() {
       if (val && val !== p.name) { p.name = val; p.updatedAt = now(); save(); render(); }
     }
   };
+
+  $("#quickForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title = $("#quickTitle").value.trim();
+    if (!title) return toast("Gib der Aufgabe einen Namen");
+    const id = uid();
+    state.tasks.push({
+      id, title, points: Math.round(QUICK_DEFAULTS.diff * QUICK_DEFAULTS.dur),
+      assignee: QUICK_DEFAULTS.assignee, diff: QUICK_DEFAULTS.diff, dur: QUICK_DEFAULTS.dur,
+      kind: QUICK_DEFAULTS.kind, days: null, room: QUICK_DEFAULTS.room,
+      week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
+    });
+    quickAdd = false; pendingTitle = ""; save(); render();
+    confirmSheet({
+      title: "Gespeichert ✨",
+      body: `„${esc(title)}“ ist als Einmal-Aufgabe für beide da. Dauer, Punkte oder Typ noch anpassen?`,
+      confirmLabel: "Ja, anpassen ✏️",
+      cancelLabel: "Später",
+      onConfirm: () => { editingTask = id; render(); },
+    });
+  });
 
   $("#taskForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -2383,7 +2427,7 @@ function performComplete(task, cx, cy, blitzBonus = 0) {
   }
 }
 
-function confirmSheet({ title, body, confirmLabel, onConfirm }) {
+function confirmSheet({ title, body, confirmLabel, cancelLabel, onConfirm }) {
   if (document.querySelector(".overlay")) return;
   const overlay = document.createElement("div");
   overlay.className = "overlay";
@@ -2392,7 +2436,7 @@ function confirmSheet({ title, body, confirmLabel, onConfirm }) {
       <h2>${title}</h2>
       ${body ? `<p class="hint">${body}</p>` : ""}
       <button class="primary-btn" id="cfYes">${confirmLabel}</button>
-      <button class="sub-btn" id="cfNo">Abbrechen</button>
+      <button class="sub-btn" id="cfNo">${cancelLabel || "Abbrechen"}</button>
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener("click", (e) => {
