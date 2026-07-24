@@ -798,46 +798,116 @@ function openTasksToday() {
 function blitzUsedToday() {
   return alive(state.completions).filter((c) => c.playerId === device.me && c.day === dayKey() && c.blitz).length;
 }
+const ROOMS = ["Küche", "Bad", "Wohnzimmer", "Schlafzimmer", "Flur", "Draußen"];
+const ROOM_EMOJI = { "Küche": "🍳", "Bad": "🛁", "Wohnzimmer": "🛋️", "Schlafzimmer": "🛏️", "Flur": "🚪", "Draußen": "🌳" };
+const durLabelOf = (t) => { const [, dur] = diffDurOf(t); return dur === 1 ? "unter 2 Min" : dur === 1.5 ? "2–10 Min" : "länger"; };
+const diffEmojiOf = (t) => { const [diff] = diffDurOf(t); return diff === 5 ? "😌" : diff === 15 ? "🤬" : "😤"; };
+function taskLastDoneTs(taskId) {
+  const cs = alive(state.completions).filter((c) => c.taskId === taskId);
+  return cs.length ? cs.reduce((a, b) => (a.ts > b.ts ? a : b)).ts : null;
+}
+function isOverdue(t) {
+  const last = taskLastDoneTs(t.id);
+  return last == null || (now() - last) >= 3 * 86400000; // nie erledigt oder 3+ Tage her
+}
+const ROULETTE_FILTERS = [
+  { id: "any", label: "🎲 Zufällig", pick: (c) => c },
+  { id: "quick", label: "⚡ Schnell (≤ ~5 Min)", pick: (c) => c.filter((t) => diffDurOf(t)[1] <= 1.5) },
+  { id: "hi", label: "💪 Viel Energie", pick: (c) => c.filter((t) => { const [d, u] = diffDurOf(t); return u === 2 || d === 15; }) },
+  { id: "lo", label: "😴 Wenig Energie", pick: (c) => c.filter((t) => { const [d, u] = diffDurOf(t); return u === 1 && d <= 10; }) },
+  { id: "points", label: "🔥 Viele Punkte", pick: (c) => { if (!c.length) return c; const mx = Math.max(...c.map((t) => t.points)); return c.filter((t) => t.points >= mx * 0.7); } },
+  { id: "overdue", label: "⏰ Überfällig", pick: (c) => c.filter(isOverdue) },
+];
+function roulettePool(filterId) {
+  const base = openTasksToday();
+  if (filterId.startsWith("room:")) return base.filter((t) => t.room === filterId.slice(5));
+  const f = ROULETTE_FILTERS.find((x) => x.id === filterId);
+  return f ? f.pick(base) : base;
+}
+
 function openRoulette() {
-  const cands = openTasksToday();
-  if (!cands.length) return toast("Alles erledigt – nichts zu würfeln 🎉");
+  if (!openTasksToday().length) return toast("Alles erledigt – nichts zu würfeln 🎉");
   if (document.querySelector(".overlay")) return;
   const overlay = document.createElement("div");
   overlay.className = "overlay";
-  overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
-    <h2>🎲 Was zuerst?</h2>
-    <div class="rou-title" id="rouTitle">…</div>
-    <div id="rouActions" hidden>
-      <button class="primary-btn" id="rouBlitz" style="margin-bottom:8px">⏱ Blitz-Sprint damit starten</button>
-      <button class="sub-btn" id="rouAgain">🎲 Nochmal würfeln</button>
-      <button class="sub-btn" id="rouGo">Passt – ich leg los!</button>
-    </div>
-  </div>`;
   document.body.appendChild(overlay);
-  let pick = null;
-  const spin = () => {
-    overlay.querySelector("#rouActions").hidden = true;
-    let i = 0, delay = 60;
-    const step = () => {
-      const el = overlay.querySelector("#rouTitle");
-      if (!el) return;
-      pick = cands[Math.floor(Math.random() * cands.length)];
-      el.textContent = pick.title;
-      if (++i < 12) { delay = Math.round(delay * 1.18); setTimeout(step, delay); }
-      else {
-        el.textContent = `${spotlightTaskId() === pick.id ? "✨ " : ""}${pick.title}  ·  +${pick.points} P${pick.assignee && pick.assignee !== device.me ? " + Bonus 🏅" : ""}`;
-        overlay.querySelector("#rouActions").hidden = false;
-      }
-    };
-    step();
+
+  const showFilters = () => {
+    const usedRooms = [...new Set(openTasksToday().map((t) => t.room).filter(Boolean))];
+    const roomBtns = usedRooms.map((r) => `<button type="button" class="pt-chip" data-filter="room:${esc(r)}">${ROOM_EMOJI[r] || "🏠"} ${esc(r)}</button>`).join("");
+    overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+      <h2>🎲 Was zuerst?</h2>
+      <p class="hint">Worauf hast du gerade Lust? Ich such dir was Passendes aus.</p>
+      <div class="point-row" id="rouFilters">
+        ${ROULETTE_FILTERS.map((f) => `<button type="button" class="pt-chip" data-filter="${f.id}">${f.label}</button>`).join("")}
+        ${roomBtns}
+      </div>
+      <button class="sub-btn" id="rouCancel">Abbrechen</button>
+    </div>`;
   };
+
+  const REROLL_MAX = 3;
+  const showSpin = (filterId) => {
+    const pool = roulettePool(filterId);
+    if (!pool.length) {
+      overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+        <h2>Nichts gefunden 🤔</h2>
+        <p class="hint">Für diese Auswahl ist heute nichts (mehr) offen. Probier einen anderen Filter.</p>
+        <button class="primary-btn" id="rouBack">Zurück zur Auswahl</button>
+      </div>`;
+      return;
+    }
+    let rerolls = 0, pick = null;
+    overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+      <h2>🎯 Deine Mission</h2>
+      <div class="rou-title" id="rouTitle">…</div>
+      <div id="rouMeta" class="calc" style="text-align:center" hidden></div>
+      <div id="rouActions" hidden>
+        <button class="primary-btn" id="rouGo" style="margin-bottom:8px">Los geht's! 💪</button>
+        <button class="sub-btn" id="rouBlitz">⏱ Blitz-Sprint damit starten</button>
+        <button class="sub-btn" id="rouAgain"></button>
+      </div>
+    </div>`;
+    const spin = () => {
+      overlay.querySelector("#rouActions").hidden = true;
+      overlay.querySelector("#rouMeta").hidden = true;
+      let i = 0, delay = 60;
+      const step = () => {
+        const el = overlay.querySelector("#rouTitle");
+        if (!el) return;
+        pick = pool[Math.floor(Math.random() * pool.length)];
+        el.textContent = pick.title;
+        if (++i < 12) { delay = Math.round(delay * 1.18); setTimeout(step, delay); }
+        else {
+          el.textContent = `${spotlightTaskId() === pick.id ? "✨ " : ""}${pick.title}`;
+          const meta = overlay.querySelector("#rouMeta");
+          const bonus = pick.assignee && pick.assignee !== device.me ? ` · +${bonusFor(pick.points)} Bonus 🏅` : "";
+          meta.innerHTML = `${durLabelOf(pick)} • ${diffEmojiOf(pick)} • <strong>${pick.points} P</strong>${bonus}`;
+          meta.hidden = false;
+          const again = overlay.querySelector("#rouAgain");
+          again.textContent = rerolls < REROLL_MAX ? `🎲 Neu würfeln (noch ${REROLL_MAX - rerolls})` : "Filter wechseln";
+          overlay.querySelector("#rouActions").hidden = false;
+        }
+      };
+      step();
+    };
+    overlay._spin = spin; overlay._reroll = () => { rerolls++; };
+    overlay._getPick = () => pick;
+    overlay._canReroll = () => rerolls < REROLL_MAX;
+    spin();
+  };
+
   overlay.addEventListener("click", (e) => {
-    if (e.target.id === "rouAgain") return spin();
-    if (e.target.id === "rouBlitz") { const id = pick && pick.id; overlay.remove(); return openBlitz(id); }
-    if (e.target.id === "rouGo") { const t = pick; overlay.remove(); return toast(`Los geht's: „${t.title}“ 💪`); }
-    if (e.target === overlay) overlay.remove();
+    const f = e.target.closest("[data-filter]");
+    if (f) return showSpin(f.dataset.filter);
+    if (e.target.id === "rouBack") return showFilters();
+    if (e.target.id === "rouCancel" || e.target === overlay) return overlay.remove();
+    if (e.target.id === "rouAgain") { if (overlay._canReroll()) { overlay._reroll(); overlay._spin(); } else { showFilters(); } return; }
+    if (e.target.id === "rouBlitz") { const p = overlay._getPick(); overlay.remove(); return openBlitz(p && p.id); }
+    if (e.target.id === "rouGo") { const p = overlay._getPick(); overlay.remove(); return toast(`Los geht's: „${p.title}“ 💪`); }
   });
-  spin();
+
+  showFilters();
 }
 
 let blitzTimer = null;
@@ -1614,6 +1684,7 @@ function taskFormHtml() {
   const who = t ? (t.assignee || "") : "";
   const kind = t ? (t.kind === "once" ? "once" : "daily") : "daily";
   const days = t && t.days ? t.days : [];
+  const room = t && t.room ? t.room : "";
   return `
     <form class="form-card" id="taskForm">
       <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
@@ -1628,6 +1699,11 @@ function taskFormHtml() {
         <div class="point-row" id="taskDays" style="margin-top:8px">
           ${DAY_NAMES.map((n, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${days.includes(i)}">${n}</button>`).join("")}
         </div>
+      </div>
+      <span class="form-label">Raum <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional – für den Roulette-Filter)</span></span>
+      <div class="point-row" id="taskRoom">
+        <button type="button" class="pt-chip" data-room="" aria-pressed="${room === ""}">Ohne</button>
+        ${ROOMS.map((r) => `<button type="button" class="pt-chip" data-room="${esc(r)}" aria-pressed="${room === r}">${ROOM_EMOJI[r]} ${esc(r)}</button>`).join("")}
       </div>
       <span class="form-label">Wessen Aufgabe ist das?</span>
       <div class="point-row" id="taskWho">
@@ -2108,12 +2184,13 @@ function bindMain() {
     const dur = +$('#taskDur .pt-chip[aria-pressed="true"]').dataset.val;
     const assignee = $('#taskWho .pt-chip[aria-pressed="true"]').dataset.who || null;
     const kind = $('#taskKind .pt-chip[aria-pressed="true"]').dataset.kind;
+    const room = $('#taskRoom .pt-chip[aria-pressed="true"]').dataset.room || null;
     let days = [...document.querySelectorAll('#taskDays .day-chip[aria-pressed="true"]')].map((b) => +b.dataset.day);
     if (kind === "once" || days.length === 0 || days.length === 7) days = null;
     const points = Math.round(diff * dur);
     if (editingTask) {
       const t = state.tasks.find((x) => x.id === editingTask);
-      if (t) Object.assign(t, { title, points, assignee, diff, dur, kind, days, updatedAt: now() });
+      if (t) Object.assign(t, { title, points, assignee, diff, dur, kind, days, room, updatedAt: now() });
       editingTask = null; save(); render();
       return toast("Aufgabe aktualisiert ✏️");
     }
@@ -2123,7 +2200,7 @@ function bindMain() {
       if (full) return toast(`${displayName(full)} hat diese Woche schon ${WEEKLY_NEW_TASKS} neue Aufgaben – ab Montag wieder! (Einmal-Aufgaben gehen immer)`);
     }
     state.tasks.push({
-      id: uid(), title, points, assignee, diff, dur, kind, days,
+      id: uid(), title, points, assignee, diff, dur, kind, days, room,
       week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
     });
     addingTask = false; save(); render();
