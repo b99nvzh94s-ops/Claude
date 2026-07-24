@@ -532,7 +532,7 @@ function fmtTime(ts) {
 }
 
 /* ---------- Abgeleitete Daten ---------- */
-const WEEKLY_NEW_TASKS = 3;
+const WEEKLY_NEW_TASKS = +localStorage.getItem("klarschiff.weeklylimit") || 5;
 const alive = (arr) => arr.filter((x) => !x.deleted);
 const playerById = (id) => state.players.find((p) => p.id === id);
 const displayName = (id) => (playerById(id)?.name || (id === "p1" ? "Spieler 1" : "Spieler 2"));
@@ -1440,7 +1440,7 @@ function viewTasks() {
       <button class="add-btn" id="addTaskBtn">+ Neu</button>
     </div>
     ${addingTask || editingTask ? taskFormHtml() : ""}
-    ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu 3 neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
+    ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu ${WEEKLY_NEW_TASKS} neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
     ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
     ${isWheelDay() && !myWheelSpinToday() ? `<button class="install-hint" data-act="gowheel" style="width:100%;text-align:left">🎡 <strong>Glücksrad-Samstag!</strong> Dein Gratis-Dreh wartet im Duell-Tab →</button>` : ""}
     ${(() => {
@@ -1480,7 +1480,7 @@ function viewTasks() {
     <ul class="cards">${orderedRecurring.map(taskCardHtml).join("")}</ul>` : ""}
     ${oneOffs.length ? `<div class="section-head"><h2>☑️ Einmal erledigen</h2></div>
     <ul class="cards">${oneOffs.map(taskCardHtml).join("")}</ul>` : ""}
-    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat 3 neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst. Abhaken fragt einmal kurz nach – nichts passiert aus Versehen; Zurücknehmen geht direkt.</p>`;
+    <p class="hint">Punkte = Nervigkeit × Dauer. Räumst du etwas weg, das eigentlich die Aufgabe des/der anderen ist, gibt's 50 % Bonus obendrauf. Persönliche Aufgaben (z. B. „Tasche in den Gang statt auf den Tisch“) zählen nur ins Wochen-Kontingent der Person, der sie gehören – jede:r hat ${WEEKLY_NEW_TASKS} neue pro Woche frei. Einmal-Aufgaben zählen nicht ins Kontingent und verschwinden nach dem Abhaken von selbst. Abhaken fragt einmal kurz nach – nichts passiert aus Versehen; Zurücknehmen geht direkt.</p>`;
 }
 
 const TASK_SUGGESTIONS = [
@@ -1916,7 +1916,7 @@ function bindMain() {
     if (kind !== "once") {
       const lanes = laneCounts();
       const full = (assignee ? [assignee] : ["p1", "p2"]).find((l) => lanes[l] >= WEEKLY_NEW_TASKS);
-      if (full) return toast(`${displayName(full)} hat diese Woche schon 3 neue Aufgaben – ab Montag wieder! (Einmal-Aufgaben gehen immer)`);
+      if (full) return toast(`${displayName(full)} hat diese Woche schon ${WEEKLY_NEW_TASKS} neue Aufgaben – ab Montag wieder! (Einmal-Aufgaben gehen immer)`);
     }
     state.tasks.push({
       id: uid(), title, points, assignee, diff, dur, kind, days,
