@@ -1156,6 +1156,8 @@ async function decodeSync(payload) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 async function buildSyncUrl() {
+  // Vor dem Teilen sicherstellen, dass ein gemeinsamer Raum existiert (dann reist er im QR/Code mit)
+  if (!state.room && device.me && syncStatus.supported !== false && syncCapableHost()) await enableAutoSync(true);
   return location.origin + location.pathname + location.search + "#sync=" + (await encodeSync());
 }
 
@@ -1206,7 +1208,7 @@ function syncSoon() {
   clearTimeout(syncSoonTimer);
   syncSoonTimer = setTimeout(autoSyncTick, 1500);
 }
-async function enableAutoSync() {
+async function enableAutoSync(silent) {
   try {
     const res = await fetch(SYNC_CREATE_URL, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state),
@@ -1218,13 +1220,20 @@ async function enableAutoSync() {
     syncStatus.supported = true;
     save();
     autoSyncTick();
-    render();
-    toast("Automatischer Sync ist an ✨ Einmal QR/Code teilen – dann läuft's von allein");
+    if (silent) { if (tab === "profile") render(); }
+    else { render(); toast("Automatischer Sync ist an ✨ Einmal QR/Code teilen – dann läuft's von allein"); }
+    return true;
   } catch {
     syncStatus.supported = false;
-    render();
-    toast("Klappt auf dieser Seite leider nicht – Details stehen im Profil");
+    if (!silent) { render(); toast("Klappt auf dieser Seite leider nicht – Details stehen im Profil"); }
+    return false;
   }
+}
+const syncCapableHost = () => /^https?:$/.test(location.protocol); // nur auf echtem Hosting, nicht file://
+// Auto-Start: auf tauglichem Hosting den Raum selbst anlegen, ohne dass jemand „einschalten“ muss
+async function maybeAutoEnableSync() {
+  if (state.room || !device.me || syncStatus.supported === false || !syncCapableHost()) return;
+  await enableAutoSync(true);
 }
 /* ---------- Benachrichtigungen bei Partner-Aktivität ---------- */
 function partnerNews() {
@@ -1510,12 +1519,12 @@ function tickConfetti() {
 /* ---------- Rendern ---------- */
 let tab = "tasks";
 let addingTask = false, addingReward = false, openMenuTask = null, openMenuReward = null,
-    editingTask = null, qrOpen = false, duelMetric = "week", quickAdd = false, pendingTitle = "";
+    editingTask = null, qrOpen = false, duelMetric = "week";
 
 function selectTab(name) {
   tab = name;
   document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === name)));
-  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null; quickAdd = false; pendingTitle = "";
+  openMenuTask = null; openMenuReward = null; addingTask = false; addingReward = false; editingTask = null;
   render();
 }
 
@@ -1630,7 +1639,6 @@ function viewTasks() {
       <h2>Unsere Aufgaben</h2>
       <button class="add-btn" id="addTaskBtn">+ Neu</button>
     </div>
-    ${quickAdd ? quickAddHtml() : ""}
     ${addingTask || editingTask ? taskFormHtml() : ""}
     ${tasks.length === 0 && !addingTask ? `<div class="empty">Noch keine Aufgaben.<br>Legt bis zu ${WEEKLY_NEW_TASKS} neue Gewohnheiten pro Person und Woche an – plus beliebig viele Einmal-Aufgaben.</div>` : ""}
     ${allDoneToday() ? `<div class="alldone">🎉 Alles erledigt für heute – die Wohnung strahlt!</div>` : ""}
@@ -1684,48 +1692,19 @@ function diffDurOf(t) {
   for (const d of [5, 10, 15]) for (const u of [1, 1.5, 2]) if (Math.round(d * u) === t.points) return [d, u];
   return [10, 1];
 }
-const QUICK_DEFAULTS = { diff: 5, dur: 1.5, kind: "once", assignee: null, room: null }; // 😌, ~5 Min, einmalig, für beide
-function quickAddHtml() {
-  return `
-    <form class="form-card" id="quickForm">
-      <input id="quickTitle" placeholder="z. B. Fenster geputzt" maxlength="60" autocomplete="off" value="${esc(pendingTitle)}">
-      <div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}" data-input="quickTitle">${esc(s)}</button>`).join("")}</div>
-      <p class="hint">Wird schnell als Einmal-Aufgabe für beide gespeichert (😌 · ~5 Min · ${Math.round(QUICK_DEFAULTS.diff * QUICK_DEFAULTS.dur)} P). Danach kannst du noch anpassen.</p>
-      <div class="form-actions">
-        <button type="button" class="ghost-btn" id="quickMore">Mehr Optionen ▾</button>
-        <button type="submit" class="add-btn">Speichern</button>
-      </div>
-      <button type="button" class="sub-btn" id="quickCancel" style="width:100%">Abbrechen</button>
-    </form>`;
-}
-
 function taskFormHtml() {
   const t = editingTask ? state.tasks.find((x) => x.id === editingTask) : null;
   const [diff, dur] = t ? diffDurOf(t) : [10, 1];
-  const who = t ? (t.assignee || "") : "";
+  // Neu: standardmäßig die ANDERE Person vorausgewählt (wer was liegen lässt, ist zuständig)
+  const who = t ? (t.assignee || "") : (device.me ? otherOf(device.me) : "");
   const kind = t ? (t.kind === "once" ? "once" : "daily") : "daily";
   const days = t && t.days ? t.days : [];
   const room = t && t.room ? t.room : "";
+  const advOpen = !!t; // beim Bearbeiten sind die Detail-Optionen direkt offen
   return `
     <form class="form-card" id="taskForm">
-      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : esc(pendingTitle)}">
+      <input id="taskTitle" placeholder="z. B. Jacke an den Haken hängen" maxlength="60" autocomplete="off" value="${t ? esc(t.title) : ""}">
       ${t ? "" : `<div class="point-row">${TASK_SUGGESTIONS.map((s) => `<button type="button" class="sug-chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`}
-      <span class="form-label">Art der Aufgabe</span>
-      <div class="point-row" id="taskKind">
-        <button type="button" class="pt-chip" data-kind="daily" aria-pressed="${kind === "daily"}">🔁 Regelmäßig</button>
-        <button type="button" class="pt-chip" data-kind="once" aria-pressed="${kind === "once"}">☑️ Einmalig</button>
-      </div>
-      <div id="daysRow" ${kind === "once" ? "hidden" : ""}>
-        <span class="form-label">An welchen Tagen? <span style="font-weight:400;text-transform:none;letter-spacing:0">(nichts gewählt = jeden Tag)</span></span>
-        <div class="point-row" id="taskDays" style="margin-top:8px">
-          ${DAY_NAMES.map((n, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${days.includes(i)}">${n}</button>`).join("")}
-        </div>
-      </div>
-      <span class="form-label">Raum <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional – für den Roulette-Filter)</span></span>
-      <div class="point-row" id="taskRoom">
-        <button type="button" class="pt-chip" data-room="" aria-pressed="${room === ""}">Ohne</button>
-        ${ROOMS.map((r) => `<button type="button" class="pt-chip" data-room="${esc(r)}" aria-pressed="${room === r}">${ROOM_EMOJI[r]} ${esc(r)}</button>`).join("")}
-      </div>
       <span class="form-label">Wessen Aufgabe ist das?</span>
       <div class="point-row" id="taskWho">
         <button type="button" class="pt-chip" data-who="" aria-pressed="${who === ""}">Beide</button>
@@ -1745,6 +1724,25 @@ function taskFormHtml() {
         <button type="button" class="pt-chip" data-val="2" aria-pressed="${dur === 2}">länger</button>
       </div>
       <div class="calc" id="taskCalc"></div>
+      <button type="button" class="sub-btn" id="taskMore" ${advOpen ? "hidden" : ""} style="align-self:flex-start;padding-left:0">Mehr anzeigen ▾</button>
+      <div id="taskAdvanced" ${advOpen ? "" : "hidden"}>
+        <span class="form-label">Art der Aufgabe</span>
+        <div class="point-row" id="taskKind">
+          <button type="button" class="pt-chip" data-kind="daily" aria-pressed="${kind === "daily"}">🔁 Regelmäßig</button>
+          <button type="button" class="pt-chip" data-kind="once" aria-pressed="${kind === "once"}">☑️ Einmalig</button>
+        </div>
+        <div id="daysRow" ${kind === "once" ? "hidden" : ""}>
+          <span class="form-label">An welchen Tagen? <span style="font-weight:400;text-transform:none;letter-spacing:0">(nichts gewählt = jeden Tag)</span></span>
+          <div class="point-row" id="taskDays" style="margin-top:8px">
+            ${DAY_NAMES.map((n, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${days.includes(i)}">${n}</button>`).join("")}
+          </div>
+        </div>
+        <span class="form-label">Raum <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional – für den Roulette-Filter)</span></span>
+        <div class="point-row" id="taskRoom">
+          <button type="button" class="pt-chip" data-room="" aria-pressed="${room === ""}">Ohne</button>
+          ${ROOMS.map((r) => `<button type="button" class="pt-chip" data-room="${esc(r)}" aria-pressed="${room === r}">${ROOM_EMOJI[r]} ${esc(r)}</button>`).join("")}
+        </div>
+      </div>
       <div class="form-actions">
         <button type="button" class="ghost-btn" id="cancelTask">Abbrechen</button>
         <button type="submit" class="add-btn">${t ? "Änderungen speichern" : "Speichern"}</button>
@@ -2067,8 +2065,8 @@ function viewProfile() {
       ` : syncStatus.supported === false ? `
         <p class="hint">⛔️ <strong>Auf dieser Seite nicht möglich:</strong> Dieses Hosting (Claude-Artifact) verbietet der App aus Sicherheitsgründen jeden Kontakt zu externen Servern – ohne gemeinsamen Server kann nichts automatisch ankommen. QR-Code und Sync-Code funktionieren hier weiterhin. Wird dieselbe Datei auf normalem Hosting (z. B. GitHub Pages) betrieben, schaltet sich der automatische Sync frei.</p>
       ` : `
-        <p class="hint">Auf Wunsch gleichen sich beide Handys automatisch ab – über einen gemeinsamen, geheimen Online-Raum (kostenlos, ohne Konto; die Daten liegen dann unter einer nur euch bekannten Zufallsadresse im Netz). Einmal einschalten, einmal QR/Code teilen – ab dann läuft alles von allein.</p>
-        <button class="primary-btn" id="autoSyncBtn">Automatischen Sync einschalten</button>
+        <p class="hint">⏳ <strong>Startet automatisch …</strong> Die App richtet gerade einen gemeinsamen, geheimen Online-Raum ein (kostenlos, ohne Konto). Danach reicht <strong>einmal QR-Code scannen</strong> – ab dann gleichen sich beide Handys von allein ab, ganz ohne Code-Schicken. Falls das hier nicht anspringt, tippe zum Nachhelfen:</p>
+        <button class="primary-btn" id="autoSyncBtn">Jetzt automatischen Sync starten</button>
       `}
     </div>
     <div class="section-head"><h2>Benachrichtigungen</h2></div>
@@ -2175,10 +2173,9 @@ function bindMain() {
       if (act === "pettap") return petSpeak(li);
       if (act === "petopen") return openPet();
     }
-    if (e.target.id === "addTaskBtn") { quickAdd = true; addingTask = false; editingTask = null; pendingTitle = ""; render(); }
-    if (e.target.id === "quickCancel") { quickAdd = false; pendingTitle = ""; render(); }
-    if (e.target.id === "quickMore") { pendingTitle = ($("#quickTitle") || {}).value || ""; quickAdd = false; addingTask = true; editingTask = null; render(); }
-    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; pendingTitle = ""; render(); }
+    if (e.target.id === "addTaskBtn") { addingTask = true; editingTask = null; render(); }
+    if (e.target.id === "taskMore") { const a = $("#taskAdvanced"); if (a) a.hidden = false; e.target.hidden = true; return; }
+    if (e.target.id === "cancelTask") { addingTask = false; editingTask = null; render(); }
     if (e.target.id === "addRewardBtn") { addingReward = true; render(); }
     if (e.target.id === "cancelReward") { addingReward = false; render(); }
     if (e.target.id === "qrToggle") { qrOpen = true; render(); }
@@ -2198,27 +2195,6 @@ function bindMain() {
       if (val && val !== p.name) { p.name = val; p.updatedAt = now(); save(); render(); }
     }
   };
-
-  $("#quickForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const title = $("#quickTitle").value.trim();
-    if (!title) return toast("Gib der Aufgabe einen Namen");
-    const id = uid();
-    state.tasks.push({
-      id, title, points: Math.round(QUICK_DEFAULTS.diff * QUICK_DEFAULTS.dur),
-      assignee: QUICK_DEFAULTS.assignee, diff: QUICK_DEFAULTS.diff, dur: QUICK_DEFAULTS.dur,
-      kind: QUICK_DEFAULTS.kind, days: null, room: QUICK_DEFAULTS.room,
-      week: isoWeek(), createdAt: now(), archived: 0, updatedAt: now(),
-    });
-    quickAdd = false; pendingTitle = ""; save(); render();
-    confirmSheet({
-      title: "Gespeichert ✨",
-      body: `„${esc(title)}“ ist als Einmal-Aufgabe für beide da. Dauer, Punkte oder Typ noch anpassen?`,
-      confirmLabel: "Ja, anpassen ✏️",
-      cancelLabel: "Später",
-      onConfirm: () => { editingTask = id; render(); },
-    });
-  });
 
   $("#taskForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -2555,6 +2531,7 @@ function openSetup() {
       if (state.players.some((p) => !p.name)) return toast("Tragt noch eure Namen ein");
       if (!device.me) return toast("Sag noch kurz, wessen Handy das ist");
       overlay.remove(); save(); render();
+      maybeAutoEnableSync().then(autoSyncTick); // Sync sofort selbst starten, sobald klar ist wer wer ist
     }
   });
 }
@@ -2578,10 +2555,10 @@ async function boot() {
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("./sw.js").catch(() => { /* z. B. Artifact-Hosting */ });
   }
-  autoSyncTick();
-  setInterval(autoSyncTick, SYNC_INTERVAL);
+  maybeAutoEnableSync().then(autoSyncTick); // Raum ggf. automatisch anlegen, dann syncen
+  setInterval(() => { maybeAutoEnableSync().then(autoSyncTick); }, SYNC_INTERVAL);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") autoSyncTick();
+    if (document.visibilityState === "visible") maybeAutoEnableSync().then(autoSyncTick);
   });
 }
 boot();
